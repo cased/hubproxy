@@ -21,7 +21,6 @@ HubProxy is a proxy for GitHub webhooks, built for people building with GitHub a
   - Range replay has a default limit of 100 events (override with `limit`)
   - Filter range replays by `type`, `repository`, and `sender`
   - Response includes `replayed_count` and list of replayed events
-  - The original event remains unchanged in the database
   - Filter events by status using `GET /api/events?status=[received|replayed|completed|pending]`
 - **Event Filtering**: 
   - Filter events by type, repository, sender, and time range
