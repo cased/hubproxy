@@ -320,10 +320,20 @@ POST /api/events/{id}/replay
 
 Replays a specific webhook event by its ID. The ID should be GitHub's original delivery ID.
 
-**Response:**
+**Response Fields:**
+- `id`: Unique event ID in format `original-id-replay-uuid`
+- `type`: GitHub event type (e.g., "push", "pull_request")
+- `payload`: Original webhook payload from GitHub
+- `created_at`: When the event was replayed
+- `status`: Always "replayed" for replayed events
+- `repository`: Repository full name
+- `sender`: GitHub username that triggered the event
+- `replayed_from`: ID of the original event that was replayed
+
+**Response Example:**
 ```json
 {
-  "id": "d2a1f85a-delivery-id-123",
+  "id": "d2a1f85a-delivery-id-123-replay-abc123",
   "type": "push",
   "payload": {
     "ref": "refs/heads/main",
@@ -341,7 +351,8 @@ Replays a specific webhook event by its ID. The ID should be GitHub's original d
   "created_at": "2024-02-06T00:00:00Z",
   "status": "replayed",
   "repository": "owner/repo",
-  "sender": "username"
+  "sender": "username",
+  "replayed_from": "d2a1f85a-delivery-id-123"
 }
 ```
 
@@ -360,13 +371,25 @@ Replays all webhook events within a specified time range.
 - `repository` (optional): Filter by repository full name
 - `sender` (optional): Filter by GitHub username
 
-**Response:**
+**Response Fields:**
+- `replayed_count`: Number of events replayed
+- `events`: List of replayed events with:
+  - `id`: Unique event ID in format `original-id-replay-uuid`
+  - `type`: GitHub event type (e.g., "push", "pull_request")
+  - `payload`: Original webhook payload from GitHub
+  - `created_at`: When the event was replayed
+  - `status`: Always "replayed" for replayed events
+  - `repository`: Repository full name
+  - `sender`: GitHub username that triggered the event
+  - `replayed_from`: ID of the original event that was replayed
+
+**Response Example:**
 ```json
 {
   "replayed_count": 5,
   "events": [
     {
-      "id": "d2a1f85a-delivery-id-123",
+      "id": "d2a1f85a-delivery-id-123-replay-abc123",
       "type": "push",
       "payload": {
         "ref": "refs/heads/main",
@@ -384,7 +407,8 @@ Replays all webhook events within a specified time range.
       "created_at": "2024-02-06T00:00:00Z",
       "status": "replayed",
       "repository": "owner/repo",
-      "sender": "username"
+      "sender": "username",
+      "replayed_from": "d2a1f85a-delivery-id-123"
     },
     ...
   ]
@@ -392,11 +416,11 @@ Replays all webhook events within a specified time range.
 ```
 
 **Notes:**
-- Each replayed event gets a new ID in format `original-id-replay-uuid`
-- The event is marked with `status="replayed"`
+- Each replayed event uses GitHub's original delivery ID to ensure proper tracing
+- The event is marked with a "replayed" status
 - The original event remains unchanged in the database
 - The webhook payload is preserved exactly as it was in the original event
-- Range replay has a default limit of 100 events (override with `limit`)
+- Range replay has a default limit of 100 events (can be overridden with `limit` parameter)
 
 ## Configuration
 
