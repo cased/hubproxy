@@ -215,6 +215,20 @@ func (h *Handler) ReplayRange(w http.ResponseWriter, r *http.Request) {
 		Offset: 0,
 	}
 
+	// Parse limit if provided
+	if limitStr := query.Get("limit"); limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil {
+			http.Error(w, "Invalid limit parameter", http.StatusBadRequest)
+			return
+		}
+		if limit <= 0 {
+			http.Error(w, "Limit must be positive", http.StatusBadRequest)
+			return
+		}
+		opts.Limit = limit
+	}
+
 	// Parse since/until (both required for range replay)
 	since := query.Get("since")
 	if since == "" {

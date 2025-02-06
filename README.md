@@ -13,11 +13,16 @@ HubProxy is a proxy for GitHub webhooks, built for people building with GitHub a
   - Replay events within a specific time range with filtering options
   - After a replay, you'll have two rows in the `events` table:
     1. The original event (unchanged)
-    2. A new event with the same payload but `status="replayed"`
+    2. A new event with:
+       - Same payload as original
+       - `status="replayed"`
+       - ID format: `original-id-replay-uuid`
+       - Original event ID stored in `replayed_from`
+  - Range replay has a default limit of 100 events (override with `limit`)
+  - Filter range replays by `type`, `repository`, and `sender`
+  - Response includes `replayed_count` and list of replayed events
   - The original event remains unchanged in the database
-  - Range replay has a default limit of 100 events (can be overridden with `limit` parameter)
   - Filter events by status using `GET /api/events?status=[received|replayed|completed|pending]`
-  - Query replayed events using `GET /api/events?status=replayed`
 - **Event Filtering**: 
   - Filter events by type, repository, sender, and time range
   - Query historical events through a RESTful API

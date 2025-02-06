@@ -218,12 +218,39 @@ func TestAPIHandler(t *testing.T) {
 	})
 
 	t.Run("Replay Events", func(t *testing.T) {
+		// Create more test events for replay testing
+		moreEvents := []*storage.Event{
+			{
+				ID:         "test-event-4",
+				Type:       "issues",
+				Payload:    []byte(`{"action": "opened"}`),
+				CreatedAt:  now.Add(-30 * time.Minute),
+				Status:     "completed",
+				Repository: "test/repo-1",
+				Sender:     "user-1",
+			},
+			{
+				ID:         "test-event-5",
+				Type:       "pull_request",
+				Payload:    []byte(`{"action": "closed"}`),
+				CreatedAt:  now.Add(-45 * time.Minute),
+				Status:     "completed",
+				Repository: "test/repo-2",
+				Sender:     "user-2",
+			},
+		}
+		for _, e := range moreEvents {
+			err := store.StoreEvent(ctx, e)
+			require.NoError(t, err)
+		}
+
 		tests := []struct {
 			name           string
 			handler        func(http.ResponseWriter, *http.Request)
 			method         string
 			path           string
 			expectedStatus int
+			validate      func(t *testing.T, resp *http.Response, store storage.Storage)
 		}{
 			{
 				name:           "Replay single event",
@@ -231,6 +258,74 @@ func TestAPIHandler(t *testing.T) {
 				method:         http.MethodPost,
 				path:           "/api/events/test-event-1/replay",
 				expectedStatus: http.StatusOK,
+				validate: func(t *testing.T, resp *http.Response, store storage.Storage) {
+					var result struct {
+						ReplayedCount int              `json:"replayed_count"`
+						Events        []*storage.Event `json:"events"`
+					}
+					err := json.NewDecoder(resp.Body).Decode(&result)
+					require.NoError(t, err)
+					
+					assert.Equal(t, 1, result.ReplayedCount)
+					require.Len(t, result.Events, 1)
+					
+					// Verify replayed event fields
+					event := result.Events[0]
+					assert.Equal(t, "replayed", event.Status)
+					assert.True(t, strings.HasPrefix(event.ID, "test-event-1-replay-"))
+					assert.Equal(t, "test-event-1", event.ReplayedFrom)
+					assert.Equal(t, "push", event.Type)
+					assert.Equal(t, "test/repo-1", event.Repository)
+					
+					// Verify original event is unchanged
+					orig, err := store.GetEvent(ctx, "test-event-1")
+					require.NoError(t, err)
+					assert.Equal(t, "completed", orig.Status)
+				},
+			},
+			{
+				name:           "Replay range with filters",
+				handler:        handler.ReplayRange,
+				method:         http.MethodPost,
+				path:           "/api/replay?since=" + now.Add(-2*time.Hour).Format(time.RFC3339) + 
+				               "&until=" + now.Format(time.RFC3339) + 
+				               "&type=pull_request&repository=test/repo-2&sender=user-2",
+				expectedStatus: http.StatusOK,
+				validate: func(t *testing.T, resp *http.Response, store storage.Storage) {
+					var result struct {
+						ReplayedCount int              `json:"replayed_count"`
+						Events        []*storage.Event `json:"events"`
+					}
+					err := json.NewDecoder(resp.Body).Decode(&result)
+					require.NoError(t, err)
+					
+					assert.Equal(t, 2, result.ReplayedCount) // Should find both pull_request events
+					for _, e := range result.Events {
+						assert.Equal(t, "replayed", e.Status)
+						assert.Equal(t, "pull_request", e.Type)
+						assert.Equal(t, "test/repo-2", e.Repository)
+						assert.Equal(t, "user-2", e.Sender)
+					}
+				},
+			},
+			{
+				name:           "Replay range with custom limit",
+				handler:        handler.ReplayRange,
+				method:         http.MethodPost,
+				path:           "/api/replay?since=" + now.Add(-2*time.Hour).Format(time.RFC3339) + 
+				               "&until=" + now.Format(time.RFC3339) + "&limit=1",
+				expectedStatus: http.StatusOK,
+				validate: func(t *testing.T, resp *http.Response, store storage.Storage) {
+					var result struct {
+						ReplayedCount int              `json:"replayed_count"`
+						Events        []*storage.Event `json:"events"`
+					}
+					err := json.NewDecoder(resp.Body).Decode(&result)
+					require.NoError(t, err)
+					
+					assert.Equal(t, 1, result.ReplayedCount)
+					require.Len(t, result.Events, 1)
+				},
 			},
 			{
 				name:           "Replay non-existent event",
@@ -240,18 +335,19 @@ func TestAPIHandler(t *testing.T) {
 				expectedStatus: http.StatusNotFound,
 			},
 			{
-				name:           "Replay events by time range",
-				handler:        handler.ReplayRange,
-				method:         http.MethodPost,
-				path:           "/api/replay?since=" + now.Add(-3*time.Hour).Format(time.RFC3339) + "&until=" + now.Format(time.RFC3339),
-				expectedStatus: http.StatusOK,
-			},
-			{
 				name:           "Replay with invalid time range",
 				handler:        handler.ReplayRange,
 				method:         http.MethodPost,
 				path:           "/api/replay?since=invalid",
 				expectedStatus: http.StatusBadRequest,
+			},
+			{
+				name:           "Replay with no events in range",
+				handler:        handler.ReplayRange,
+				method:         http.MethodPost,
+				path:           "/api/replay?since=" + now.Add(-100*time.Hour).Format(time.RFC3339) + 
+				               "&until=" + now.Add(-99*time.Hour).Format(time.RFC3339),
+				expectedStatus: http.StatusNotFound,
 			},
 		}
 
@@ -269,19 +365,8 @@ func TestAPIHandler(t *testing.T) {
 
 				assert.Equal(t, tc.expectedStatus, resp.StatusCode)
 
-				if tc.expectedStatus == http.StatusOK {
-					var result struct {
-						ReplayedCount int              `json:"replayed_count"`
-						Events        []*storage.Event `json:"events,omitempty"`
-					}
-					err = json.NewDecoder(resp.Body).Decode(&result)
-					require.NoError(t, err)
-
-					if strings.Contains(tc.path, "/replay?") {
-						assert.Greater(t, result.ReplayedCount, 0)
-					} else {
-						assert.Equal(t, 1, result.ReplayedCount)
-					}
+				if tc.validate != nil {
+					tc.validate(t, resp, store)
 				}
 			})
 		}
