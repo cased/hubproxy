@@ -108,7 +108,8 @@ CREATE TABLE events (
     status      VARCHAR(20) NOT NULL,       -- Delivery status
     error       TEXT,                       -- Error message if failed
     repository  VARCHAR(255),               -- Repository name
-    sender      VARCHAR(255)                -- Event sender
+    sender      VARCHAR(255),               -- Event sender
+    replayed_from VARCHAR(255)              -- Original event ID if this is a replay
 );
 
 -- Indexes for efficient querying
@@ -117,6 +118,7 @@ CREATE INDEX idx_type ON events (type);
 CREATE INDEX idx_status ON events (status);
 CREATE INDEX idx_repository ON events (repository);
 CREATE INDEX idx_sender ON events (sender);
+CREATE INDEX idx_replayed_from ON events (replayed_from);
 ```
 
 ### Queries
@@ -131,14 +133,67 @@ The storage interface supports filtering events by:
 - Delivery status
 - Sender
 
-Example query:
+Example queries:
 ```go
+// List all events
 events, err := storage.ListEvents(QueryOptions{
     Types:      []string{"push", "pull_request"},
     Repository: "owner/repo",
     Since:      time.Now().Add(-24 * time.Hour),
     Status:     "delivered",
 })
+
+// List only replayed events
+events, err := storage.ListEvents(QueryOptions{
+    Status: "replayed",
+})
+
+// List original events that have been replayed
+events, err := storage.ListEvents(QueryOptions{
+    HasReplayedEvents: true,
+})
+```
+
+### Querying Replay Events
+
+You can query replayed events using the `status` filter. For example, to list all replayed events:
+
+```go
+events, err := storage.ListEvents(QueryOptions{
+    Status: "replayed",
+})
+```
+
+You can also query original events that have been replayed using the `HasReplayedEvents` filter:
+
+```go
+events, err := storage.ListEvents(QueryOptions{
+    HasReplayedEvents: true,
+})
+```
+
+### Event Replay
+
+HubProxy allows you to replay webhook events for testing, recovery, or debugging purposes.
+
+#### Replay ID Format
+
+Each replayed event has an ID in the format: `original-id-replay-uuid`
+
+For example:
+- Original event ID: `d2a1f85a-delivery-id-123`
+- Replayed event ID: `d2a1f85a-delivery-id-123-replay-abc123`
+
+This format ensures:
+1. Easy tracing back to original event
+2. Unique IDs for multiple replays of same event
+3. Clear identification of replayed events
+
+#### Replay Single Event
+
+```go
+// Replay a single event by its ID
+event, err := storage.ReplayEvent("d2a1f85a-delivery-id-123")
 ```
 
 ### Development Tools
