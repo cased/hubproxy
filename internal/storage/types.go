@@ -16,6 +16,9 @@ type Event struct {
 	Error      string          `json:"error,omitempty"`
 	Repository string          `json:"repository"`
 	Sender     string          `json:"sender"`
+	// Fields for replayed events
+	ReplayedFrom   string    `json:"replayed_from,omitempty"`   // Original event ID if this is a replay
+	OriginalTime   time.Time `json:"original_time,omitempty"`   // Original event time if this is a replay
 }
 
 // QueryOptions contains options for querying events

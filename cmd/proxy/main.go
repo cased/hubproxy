@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"hubproxy/internal/api"
 	"hubproxy/internal/config"
 	"hubproxy/internal/storage"
 	"hubproxy/internal/storage/sql/mysql"
@@ -180,13 +181,24 @@ func run() error {
 	}
 
 	// Create webhook handler
-	handler := webhook.NewHandler(webhook.Options{
+	webhookHandler := webhook.NewHandler(webhook.Options{
 		Secret:     secret,
 		TargetURL:  target.String(),
 		Logger:     logger,
 		Store:      store,
 		ValidateIP: cfg.ValidateIP,
 	})
+
+	// Create API handler
+	apiHandler := api.NewHandler(store, logger)
+
+	// Create router and register handlers
+	mux := http.NewServeMux()
+	mux.Handle("/webhook", webhookHandler)
+	mux.Handle("/api/events", http.HandlerFunc(apiHandler.ListEvents))
+	mux.Handle("/api/stats", http.HandlerFunc(apiHandler.GetStats))
+	mux.Handle("/api/events/", http.HandlerFunc(apiHandler.ReplayEvent)) // Handle replay endpoint
+	mux.Handle("/api/replay", http.HandlerFunc(apiHandler.ReplayRange))  // Handle range replay
 
 	// Start server
 	var srv *http.Server
@@ -222,7 +234,7 @@ func run() error {
 		)
 
 		srv = &http.Server{
-			Handler:      handler,
+			Handler:      mux,
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 			IdleTimeout:  60 * time.Second,
@@ -232,7 +244,7 @@ func run() error {
 		// Run as regular HTTP server
 		srv = &http.Server{
 			Addr:         ":8080",
-			Handler:      handler,
+			Handler:      mux,
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 			IdleTimeout:  60 * time.Second,

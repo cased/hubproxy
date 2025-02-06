@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"hubproxy/internal/testutil"
 	"hubproxy/internal/storage"
+	"hubproxy/internal/testutil"
 )
 
 func TestStorageImplementations(t *testing.T) {

@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"hubproxy/internal/security"
 	"hubproxy/internal/storage"
 )
@@ -160,7 +158,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Store the webhook event
 	if h.store != nil {
 		event := &storage.Event{
-			ID:         uuid.New().String(),
+			ID:         r.Header.Get("X-GitHub-Delivery"),  // Use GitHub's delivery ID
 			Type:       r.Header.Get("X-GitHub-Event"),
 			Payload:    json.RawMessage(payload),
 			CreatedAt:  time.Now(),

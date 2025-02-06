@@ -8,9 +8,22 @@ HubProxy is a robust webhook proxy to enhance the reliability and security of Gi
 
 - **Webhook Verification**: Cryptographically verifies GitHub webhook signatures to ensure authenticity
 - **Event Persistence**: Stores webhook events in a database (SQLite/PostgreSQL/MySQL) for audit and replay
-- **Event Replay**: Allows historical events to be replayed to recover from outages or test new integrations
-- **Event Filtering**: Supports filtering events by type, repository, and time range
-- **Monitoring**: Provides metrics and logging for webhook delivery status and performance
+- **Event Replay**: 
+  - Replay individual events by ID for testing or recovery
+  - Replay events within a specific time range with filtering options
+  - Each replay creates a new event with GitHub's delivery ID and "replayed" status
+- **Event Filtering**: 
+  - Filter events by type, repository, sender, and time range
+  - Query historical events through a RESTful API
+  - Get event statistics and delivery metrics
+- **REST API**:
+  - List and search webhook events with pagination
+  - View event type statistics over time
+  - Replay single events or event ranges
+  - Filter and query capabilities for all operations
+- **Monitoring**: 
+  - Provides metrics and logging for webhook delivery status and performance
+  - Track event patterns and volume through API statistics
 
 ### Why HubProxy?
 
@@ -212,6 +225,129 @@ mysql -h localhost -P 3306 -u user -p hubproxy
 # Test SQLite database
 sqlite3 .cache/hubproxy.db
 ```
+
+## API Reference
+
+HubProxy provides a REST API for querying and replaying webhook events. All API endpoints return JSON responses.
+
+### List Events
+
+```http
+GET /api/events
+```
+
+Lists webhook events with filtering and pagination.
+
+**Query Parameters:**
+- `type` (optional): Filter by event type (e.g., "push", "pull_request")
+- `repository` (optional): Filter by repository full name (e.g., "owner/repo")
+- `sender` (optional): Filter by GitHub username
+- `status` (optional): Filter by event status
+- `since` (optional): Start time in RFC3339 format (e.g., "2024-02-01T00:00:00Z")
+- `until` (optional): End time in RFC3339 format
+- `limit` (optional): Maximum number of events to return (default: 50)
+- `offset` (optional): Number of events to skip for pagination
+
+**Response:**
+```json
+{
+  "events": [
+    {
+      "id": "event-uuid",
+      "type": "push",
+      "payload": { ... },
+      "created_at": "2024-02-06T00:00:00Z",
+      "status": "received",
+      "repository": "owner/repo",
+      "sender": "username"
+    }
+  ],
+  "total": 100
+}
+```
+
+### Get Event Statistics
+
+```http
+GET /api/stats
+```
+
+Returns event type statistics for a given time period.
+
+**Query Parameters:**
+- `since` (optional): Start time in RFC3339 format (default: 24 hours ago)
+
+**Response:**
+```json
+{
+  "push": 50,
+  "pull_request": 25,
+  "issues": 10
+}
+```
+
+### Replay Single Event
+
+```http
+POST /api/events/{id}/replay
+```
+
+Replays a specific webhook event by its ID.
+
+**Response:**
+```json
+{
+  "id": "3d6d6a80-d23f-11eb-92f0-d9cb36e6f6d4",
+  "type": "push",
+  "payload": { ... },
+  "created_at": "2024-02-06T00:00:00Z",
+  "status": "replayed",
+  "repository": "owner/repo",
+  "sender": "username"
+}
+```
+
+### Replay Events by Time Range
+
+```http
+POST /api/replay
+```
+
+Replays all webhook events within a specified time range.
+
+**Query Parameters:**
+- `since` (required): Start time in RFC3339 format (e.g., "2024-02-01T00:00:00Z")
+- `until` (required): End time in RFC3339 format
+- `type` (optional): Filter by event type
+- `repository` (optional): Filter by repository full name
+- `sender` (optional): Filter by GitHub username
+
+**Response:**
+```json
+{
+  "replayed_count": 5,
+  "events": [
+    {
+      "id": "3d6d6a80-d23f-11eb-92f0-d9cb36e6f6d4",
+      "type": "push",
+      "payload": { ... },
+      "created_at": "2024-02-06T00:00:00Z",
+      "status": "replayed",
+      "repository": "owner/repo",
+      "sender": "username"
+    },
+    ...
+  ]
+}
+```
+
+**Notes:**
+- Each replayed event is stored as a new event with:
+  - GitHub's original delivery ID
+  - Current timestamp and "replayed" status
+- The original event remains unchanged in the database
+- The webhook payload is preserved exactly as it was in the original event
+- Range replay is limited to 100 events per request to prevent system overload
 
 ## Configuration
 
