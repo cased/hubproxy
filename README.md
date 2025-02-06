@@ -2,7 +2,7 @@
 
 ## Overview
 
-HubProxy is a robust webhook proxy to enhance the reliability and security of GitHub webhook integrations. It acts as an intermediary between GitHub and your target services, providing several key benefits:
+HubProxy is a proxy for GitHub webhooks, built for people building with GitHub at scale. It fixes a lot of stuff, and makes life easier.
 
 ### Key Features
 
@@ -14,7 +14,6 @@ HubProxy is a robust webhook proxy to enhance the reliability and security of Gi
   - After a replay, you'll have two rows in the `events` table:
     1. The original event (unchanged)
     2. A new event with the same payload but `status="replayed"`
-  - The original event remains unchanged in the database
   - Range replay is limited to 100 events per request to prevent system overload
   - Filter events by status using `GET /api/events?status=[received|replayed|completed|pending]`
   - Query replayed events using `GET /api/events?status=replayed`
