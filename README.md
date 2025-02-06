@@ -392,11 +392,11 @@ Replays all webhook events within a specified time range.
 ```
 
 **Notes:**
-- Each replayed event uses GitHub's original delivery ID to ensure proper tracing
-- The event is marked with a "replayed" status
+- Each replayed event gets a new ID in format `original-id-replay-uuid`
+- The event is marked with `status="replayed"`
 - The original event remains unchanged in the database
 - The webhook payload is preserved exactly as it was in the original event
-- Range replay has a default limit of 100 events (can be overridden with `limit` parameter)
+- Range replay has a default limit of 100 events (override with `limit`)
 
 ## Configuration
 
