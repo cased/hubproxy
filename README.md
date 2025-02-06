@@ -555,11 +555,6 @@ Using a database as the source of truth for webhook events provides several key 
    - Familiar tooling and ecosystem
    - Easy integration with existing systems
 
-5. **Future Capabilities**
-   - Event replay interface
-   - Repository dependency tracking
-   - Custom metrics and dashboards
-   - Workflow analysis
 
 ## Contributing
 
