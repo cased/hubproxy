@@ -1,0 +1,70 @@
+name: Test
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23.2'
+        cache: true
+    - name: Install dependencies
+      run: make deps
+    - name: Run lint
+      run: |
+        golangci-lint run --timeout=5m
+        staticcheck ./...
+        go vet ./...
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: hubproxy
+          POSTGRES_PASSWORD: hubproxy
+          POSTGRES_DB: hubproxy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23.2'
+        cache: true
+    - name: Install dependencies
+      run: make deps
+    - name: Run tests
+      run: go test -v ./...
+      env:
+        DATABASE_URL: "postgres://hubproxy:hubproxy@localhost:5432/hubproxy_test?sslmode=disable"
+    - name: Run integration tests
+      run: |
+        # Start test server in background
+        go run internal/cmd/dev/testserver/main.go --port 8082 &
+        
+        # Start proxy in background
+        go run cmd/proxy/main.go --secret test-secret --target http://localhost:8082 --validate-ip=false &
+        
+        # Wait for services to be ready
+        sleep 5
+        
+        # Run integration tests
+        go test -v ./internal/integration/...
+      env:
+        DATABASE_URL: "postgres://hubproxy:hubproxy@localhost:5432/hubproxy_test?sslmode=disable"

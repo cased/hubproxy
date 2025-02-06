@@ -1,0 +1,7 @@
+services:
+  proxy:
+    build: .
+    ports:
+      - "8081:8080"
+    environment:
+      - GITHUB_WEBHOOK_SECRET=dev-secret
