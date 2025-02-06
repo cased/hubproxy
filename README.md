@@ -7,15 +7,17 @@ HubProxy is a robust webhook proxy to enhance the reliability and security of Gi
 ### Key Features
 
 - **Webhook Verification**: Cryptographically verifies GitHub webhook signatures to ensure authenticity
-- **Event Persistence**: Stores webhook events in a database (SQLite/PostgreSQL/MySQL) for audit and replay
-- **Event Replay**: 
+- **Event Persistence**: Stores webhook events in a database (`SQLite`/`PostgreSQL`/`MySQL`) for audit and replay
+- **Event Replay**:
   - Replay individual events by ID for testing or recovery
   - Replay events within a specific time range with filtering options
-  - Each replay adds a new row to the events table with the same payload but status="replayed"
+  - After a replay, you'll have two rows in the `events` table:
+    1. The original event (unchanged)
+    2. A new event with the same payload but `status="replayed"`
   - The original event remains unchanged in the database
   - Range replay is limited to 100 events per request to prevent system overload
-  - Filter events by status using GET /api/events?status=[received|replayed|completed|pending]
-  - Query replayed events using GET /api/events?status=replayed
+  - Filter events by status using `GET /api/events?status=[received|replayed|completed|pending]`
+  - Query replayed events using `GET /api/events?status=replayed`
 - **Event Filtering**: 
   - Filter events by type, repository, sender, and time range
   - Query historical events through a RESTful API
