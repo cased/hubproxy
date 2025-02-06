@@ -15,7 +15,7 @@ HubProxy is a robust webhook proxy to enhance the reliability and security of Gi
     1. The original event (unchanged)
     2. A new event with the same payload but `status="replayed"`
   - The original event remains unchanged in the database
-  - Range replay is limited to 100 events per request to prevent system overload
+  - Range replay has a default limit of 100 events (can be overridden with `limit` parameter)
   - Filter events by status using `GET /api/events?status=[received|replayed|completed|pending]`
   - Query replayed events using `GET /api/events?status=replayed`
 - **Event Filtering**: 
@@ -391,7 +391,7 @@ Replays all webhook events within a specified time range.
 - The event is marked with a "replayed" status
 - The original event remains unchanged in the database
 - The webhook payload is preserved exactly as it was in the original event
-- Range replay is limited to 100 events per request to prevent system overload
+- Range replay has a default limit of 100 events (can be overridden with `limit` parameter)
 
 ## Configuration
 
