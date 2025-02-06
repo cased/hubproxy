@@ -8,17 +8,16 @@ import (
 
 // Event represents a GitHub webhook event
 type Event struct {
-	ID         string          `json:"id"`
-	Type       string          `json:"type"`
-	Payload    json.RawMessage `json:"payload"`
-	CreatedAt  time.Time       `json:"created_at"`
-	Status     string          `json:"status"`
-	Error      string          `json:"error,omitempty"`
-	Repository string          `json:"repository"`
-	Sender     string          `json:"sender"`
-	// Fields for replayed events
-	ReplayedFrom   string    `json:"replayed_from,omitempty"`   // Original event ID if this is a replay
-	OriginalTime   time.Time `json:"original_time,omitempty"`   // Original event time if this is a replay
+	ID           string          `json:"id"`
+	Type         string          `json:"type"`
+	Payload      json.RawMessage `json:"payload"`
+	CreatedAt    time.Time       `json:"created_at"`
+	Status       string          `json:"status"`
+	Error        string          `json:"error,omitempty"`
+	Repository   string          `json:"repository,omitempty"`
+	Sender       string          `json:"sender,omitempty"`
+	ReplayedFrom string          `json:"replayed_from,omitempty"` // Original event ID if this is a replay
+	OriginalTime time.Time       `json:"original_time,omitempty"` // Original event time if this is a replay
 }
 
 // QueryOptions contains options for querying events

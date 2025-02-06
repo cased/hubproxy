@@ -113,20 +113,23 @@ var sampleEvents = []struct {
 func generateSignature(payload []byte, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(payload)
-	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	sig := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	log.Printf("Generated signature with secret '%s': %s", secret, sig)
+	return sig
 }
 
 func main() {
 	var (
-		targetURL = flag.String("url", "http://localhost:8080/webhook", "Target URL for webhooks")
-		secret    = flag.String("secret", "test-secret", "Webhook secret")
+		targetURL = flag.String("url", "http://localhost:8080", "Target URL for webhooks")
+		secret    = flag.String("secret", "dev-secret", "Webhook secret")
 		delay     = flag.Duration("delay", 2*time.Second, "Delay between webhooks")
 	)
 	flag.Parse()
 
 	log.Printf("Starting webhook simulation")
-	log.Printf("Target URL: %s", *targetURL)
-	log.Printf("Secret length: %d chars", len(*secret))
+	log.Printf("Target URL: %s/webhook", *targetURL)
+	log.Printf("Using secret: %q", *secret)
+	log.Printf("Delay between webhooks: %v", *delay)
 
 	client := &http.Client{}
 
@@ -141,8 +144,9 @@ func main() {
 		if err != nil {
 			log.Fatalf("Error marshaling payload: %v", err)
 		}
+		log.Printf("Payload: %s", string(payload))
 
-		req, err := http.NewRequest("POST", *targetURL, bytes.NewReader(payload))
+		req, err := http.NewRequest("POST", *targetURL+"/webhook", bytes.NewReader(payload))
 		if err != nil {
 			log.Fatalf("Error creating request: %v", err)
 		}
@@ -154,10 +158,15 @@ func main() {
 
 		// Add signature
 		if event.Invalid {
-			req.Header.Set("X-Hub-Signature-256", "sha256=invalid")
+			// Use a valid hex string but with wrong secret
+			mac := hmac.New(sha256.New, []byte("wrong-secret"))
+			mac.Write(payload)
+			req.Header.Set("X-Hub-Signature-256", "sha256="+hex.EncodeToString(mac.Sum(nil)))
 		} else {
 			req.Header.Set("X-Hub-Signature-256", generateSignature(payload, *secret))
 		}
+
+		log.Printf("Sending request to %s with headers: %+v", req.URL, req.Header)
 
 		start := time.Now()
 		resp, err := client.Do(req)

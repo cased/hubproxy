@@ -87,11 +87,11 @@ hubproxy --db mysql --db-dsn "user:password@tcp(localhost:3306)/hubproxy"
 
 ### Schema
 
-The database schema is defined in `pkg/storage/sql/schema.sql`. Here's a simplified version (actual types may vary by database):
+The database schema is defined in `internal/storage/sql/schema.sql`. Here's a simplified version (actual types may vary by database):
 
 ```sql
 CREATE TABLE events (
-    id          VARCHAR(36) PRIMARY KEY,    -- UUID for event
+    id          VARCHAR(255) PRIMARY KEY,    -- GitHub delivery ID
     type        VARCHAR(50) NOT NULL,       -- GitHub event type
     payload     TEXT NOT NULL,              -- Event payload as JSON
     created_at  TIMESTAMP NOT NULL,         -- Event creation time
@@ -111,7 +111,7 @@ CREATE INDEX idx_sender ON events (sender);
 
 ### Queries
 
-All SQL queries are defined in `pkg/storage/sql/queries.sql` and are validated at compile-time by SQLC. 
+All SQL queries are defined in `internal/storage/sql/queries.sql` and are validated at compile-time by SQLC. 
 
 ### Query Options
 The storage interface supports filtering events by:
@@ -139,8 +139,11 @@ events, err := storage.ListEvents(QueryOptions{
    # Start the development environment (required before using other tools)
    ./tools/dev.sh
 
-   # Customize settings
-   ./tools/dev.sh --secret my-secret --target-port 8083
+   # Customize webhook secret
+   GITHUB_WEBHOOK_SECRET=my-secret ./tools/dev.sh
+
+   # Customize test server port
+   ./tools/dev.sh --target-port 8083
    ```
    This will:
    - Create a SQLite database in `.cache/hubproxy.db`
@@ -148,7 +151,7 @@ events, err := storage.ListEvents(QueryOptions{
    - Start the webhook proxy with GitHub IP validation disabled
 
    Default settings:
-   - Webhook secret: `dev-secret`
+   - Webhook secret: `dev-secret` (via GITHUB_WEBHOOK_SECRET env var)
    - Test server port: 8082
    - SQLite database: `.cache/hubproxy.db`
 
@@ -206,8 +209,8 @@ events, err := storage.ListEvents(QueryOptions{
 make test
 
 # Run specific package tests
-go test ./pkg/webhook/...
-go test ./pkg/storage/...
+go test ./internal/storage/...
+go test ./internal/webhook/...
 
 # Run with race detection
 go test -race ./...
@@ -253,7 +256,7 @@ Lists webhook events with filtering and pagination.
 {
   "events": [
     {
-      "id": "event-uuid",
+      "id": "d2a1f85a-delivery-id-123",
       "type": "push",
       "payload": { ... },
       "created_at": "2024-02-06T00:00:00Z",
@@ -292,12 +295,12 @@ Returns event type statistics for a given time period.
 POST /api/events/{id}/replay
 ```
 
-Replays a specific webhook event by its ID.
+Replays a specific webhook event by its ID. The ID should be GitHub's original delivery ID.
 
 **Response:**
 ```json
 {
-  "id": "3d6d6a80-d23f-11eb-92f0-d9cb36e6f6d4",
+  "id": "d2a1f85a-delivery-id-123",
   "type": "push",
   "payload": { ... },
   "created_at": "2024-02-06T00:00:00Z",
@@ -328,7 +331,7 @@ Replays all webhook events within a specified time range.
   "replayed_count": 5,
   "events": [
     {
-      "id": "3d6d6a80-d23f-11eb-92f0-d9cb36e6f6d4",
+      "id": "d2a1f85a-delivery-id-123",
       "type": "push",
       "payload": { ... },
       "created_at": "2024-02-06T00:00:00Z",
@@ -342,9 +345,8 @@ Replays all webhook events within a specified time range.
 ```
 
 **Notes:**
-- Each replayed event is stored as a new event with:
-  - GitHub's original delivery ID
-  - Current timestamp and "replayed" status
+- Each replayed event uses GitHub's original delivery ID to ensure proper tracing
+- The event is marked with a "replayed" status
 - The original event remains unchanged in the database
 - The webhook payload is preserved exactly as it was in the original event
 - Range replay is limited to 100 events per request to prevent system overload
@@ -530,23 +532,6 @@ Please make sure your PR:
 - Updates documentation as needed
 - Follows the existing code style
 - Includes a clear description of the changes
-
-## Tailscale Support
-
-HubProxy can optionally run as a Tailscale node using [tsnet](https://tailscale.com/kb/1244/tsnet/), making it accessible over your Tailscale network. To use this feature:
-
-1. Generate an auth key from your [Tailscale Admin Console](https://login.tailscale.com/admin/settings/keys)
-2. Run hubproxy with the following flags:
-   ```bash
-   hubproxy --ts-authkey=ts-abc123... --ts-hostname=hubproxy
-   ```
-
-Your proxy will be accessible at `hubproxy.<tailnet>.ts.net`. You can customize the hostname using the `--ts-hostname` flag.
-
-This is useful for:
-- Running hubproxy in a private network without exposing it to the internet
-- Accessing hubproxy from any device in your Tailscale network
-- Using Tailscale's ACLs to control access to the proxy
 
 ## License
 

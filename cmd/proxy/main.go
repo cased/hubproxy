@@ -130,6 +130,7 @@ func run() error {
 	if secret == "" {
 		return fmt.Errorf("webhook secret is required (set GITHUB_WEBHOOK_SECRET environment variable)")
 	}
+	logger.Info("using webhook secret from environment", "secret", secret)
 
 	// Validate flags
 	if cfg.TargetURL == "" {

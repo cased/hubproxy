@@ -3,14 +3,14 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"log/slog"
-
 	"hubproxy/internal/storage"
+
 	"github.com/google/uuid"
 )
 
@@ -174,7 +174,7 @@ func (h *Handler) ReplayEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Create new event with same payload but new ID and timestamp
 	replayEvent := &storage.Event{
-		ID:           fmt.Sprintf("%s-replay-%s", event.ID, uuid.New().String()),  // Format: original-id-replay-uuid
+		ID:           fmt.Sprintf("%s-replay-%s", event.ID, uuid.New().String()), // Format: original-id-replay-uuid
 		Type:         event.Type,
 		Payload:      event.Payload,
 		CreatedAt:    time.Now(),
@@ -266,7 +266,7 @@ func (h *Handler) ReplayRange(w http.ResponseWriter, r *http.Request) {
 	replayedEvents := make([]*storage.Event, 0, len(events))
 	for _, event := range events {
 		replayEvent := &storage.Event{
-			ID:           fmt.Sprintf("%s-replay-%s", event.ID, uuid.New().String()),  // Format: original-id-replay-uuid
+			ID:           fmt.Sprintf("%s-replay-%s", event.ID, uuid.New().String()), // Format: original-id-replay-uuid
 			Type:         event.Type,
 			Payload:      event.Payload,
 			CreatedAt:    time.Now(),

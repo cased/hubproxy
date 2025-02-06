@@ -58,6 +58,11 @@ func (h *Handler) VerifySignature(header http.Header, payload []byte) error {
 		return fmt.Errorf("missing signature")
 	}
 
+	h.logger.Debug("verifying signature",
+		"header", signature,
+		"payload_length", len(payload),
+		"secret_length", len(h.secret))
+
 	if !strings.HasPrefix(signature, "sha256=") {
 		h.logger.Error("invalid signature format")
 		return fmt.Errorf("invalid signature format")
@@ -65,13 +70,29 @@ func (h *Handler) VerifySignature(header http.Header, payload []byte) error {
 
 	providedSignature := strings.TrimPrefix(signature, "sha256=")
 
+	// Decode hex signature
+	providedBytes, err := hex.DecodeString(providedSignature)
+	if err != nil {
+		h.logger.Error("invalid signature hex", "error", err)
+		return fmt.Errorf("invalid signature hex: %v", err)
+	}
+
 	// Calculate expected signature
 	mac := hmac.New(sha256.New, []byte(h.secret))
 	mac.Write(payload)
-	expectedSignature := hex.EncodeToString(mac.Sum(nil))
+	expectedBytes := mac.Sum(nil)
+	expectedSignature := hex.EncodeToString(expectedBytes)
 
-	if !hmac.Equal([]byte(providedSignature), []byte(expectedSignature)) {
-		h.logger.Error("invalid signature")
+	h.logger.Debug("comparing signatures",
+		"provided", providedSignature,
+		"expected", expectedSignature,
+		"secret", h.secret,
+		"payload", string(payload))
+
+	if !hmac.Equal(providedBytes, expectedBytes) {
+		h.logger.Error("invalid signature",
+			"provided", providedSignature,
+			"expected", expectedSignature)
 		return fmt.Errorf("invalid signature")
 	}
 
@@ -158,7 +179,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Store the webhook event
 	if h.store != nil {
 		event := &storage.Event{
-			ID:         r.Header.Get("X-GitHub-Delivery"),  // Use GitHub's delivery ID
+			ID:         r.Header.Get("X-GitHub-Delivery"), // Use GitHub's delivery ID
 			Type:       r.Header.Get("X-GitHub-Event"),
 			Payload:    json.RawMessage(payload),
 			CreatedAt:  time.Now(),
