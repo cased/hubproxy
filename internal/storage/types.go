@@ -49,12 +49,15 @@ type Storage interface {
 	// CountEvents returns the total number of events matching the given options
 	CountEvents(ctx context.Context, opts QueryOptions) (int, error)
 
-	// GetEventTypeStats gets event type statistics
-	GetEventTypeStats(ctx context.Context, since time.Time) (map[string]int64, error)
+	// GetStats returns event type statistics
+	GetStats(ctx context.Context, since time.Time) (map[string]int64, error)
 
-	// Close closes the storage connection
-	Close() error
+	// GetEvent returns a single event by ID
+	GetEvent(ctx context.Context, id string) (*Event, error)
 
 	// CreateSchema creates the database schema
 	CreateSchema(ctx context.Context) error
+
+	// Close closes the storage
+	Close() error
 }

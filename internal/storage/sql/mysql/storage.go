@@ -81,11 +81,7 @@ func (s *MySQLStorage) Close() error {
 	return s.db.Close()
 }
 
-// GetEventTypeStats gets event type statistics since the given time
-func (s *MySQLStorage) GetEventTypeStats(ctx context.Context, since time.Time) (map[string]int64, error) {
-	stats, err := s.BaseStorage.GetEventTypeStats(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("getting event type stats: %w", err)
-	}
-	return stats, nil
+// GetStats returns event type statistics since the given time
+func (s *MySQLStorage) GetStats(ctx context.Context, since time.Time) (map[string]int64, error) {
+	return s.BaseStorage.GetStats(ctx, since)
 }

@@ -115,10 +115,10 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get stats for last 24 hours by default
-	since := time.Now().Add(-24 * time.Hour)
-	if s := r.URL.Query().Get("since"); s != "" {
-		t, err := time.Parse(time.RFC3339, s)
+	// Get stats
+	since := time.Time{}
+	if sinceStr := r.URL.Query().Get("since"); sinceStr != "" {
+		t, err := time.Parse(time.RFC3339, sinceStr)
 		if err != nil {
 			http.Error(w, "Invalid since parameter", http.StatusBadRequest)
 			return
@@ -126,7 +126,7 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 		since = t
 	}
 
-	stats, err := h.store.GetEventTypeStats(r.Context(), since)
+	stats, err := h.store.GetStats(r.Context(), since)
 	if err != nil {
 		h.logger.Error("Error getting stats", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -149,28 +149,23 @@ func (h *Handler) ReplayEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Extract event ID from path
 	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) != 4 || parts[3] != "replay" {
+	if len(parts) < 4 || parts[len(parts)-1] != "replay" {
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
+	eventID := parts[len(parts)-2]
 
 	// Get event from storage
-	opts := storage.QueryOptions{
-		Types:  []string{},
-		Limit:  1,
-		Offset: 0,
-	}
-	events, _, err := h.store.ListEvents(r.Context(), opts)
+	event, err := h.store.GetEvent(r.Context(), eventID)
 	if err != nil {
 		h.logger.Error("Error getting event", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	if len(events) == 0 {
+	if event == nil {
 		http.Error(w, "Event not found", http.StatusNotFound)
 		return
 	}
-	event := events[0]
 
 	// Create new event with same payload but new ID and timestamp
 	replayEvent := &storage.Event{
@@ -194,7 +189,14 @@ func (h *Handler) ReplayEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(replayEvent); err != nil {
+	response := struct {
+		ReplayedCount int              `json:"replayed_count"`
+		Events        []*storage.Event `json:"events"`
+	}{
+		ReplayedCount: 1,
+		Events:        []*storage.Event{replayEvent},
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.logger.Error("Error encoding response", "error", err)
 	}
 }

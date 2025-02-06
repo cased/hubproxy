@@ -83,28 +83,7 @@ func (s *PostgresStorage) Close() error {
 	return s.db.Close()
 }
 
-// GetEventTypeStats gets event type statistics since the given time
-func (s *PostgresStorage) GetEventTypeStats(ctx context.Context, since time.Time) (map[string]int64, error) {
-	query := `
-		SELECT event_type, COUNT(*) as count
-		FROM events
-		WHERE created_at >= $1
-		GROUP BY event_type
-	`
-	rows, err := s.db.QueryContext(ctx, query, since)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	stats := make(map[string]int64)
-	for rows.Next() {
-		var eventType string
-		var count int64
-		if err := rows.Scan(&eventType, &count); err != nil {
-			return nil, err
-		}
-		stats[eventType] = count
-	}
-	return stats, rows.Err()
+// GetStats returns event type statistics since the given time
+func (s *PostgresStorage) GetStats(ctx context.Context, since time.Time) (map[string]int64, error) {
+	return s.BaseStorage.GetStats(ctx, since)
 }

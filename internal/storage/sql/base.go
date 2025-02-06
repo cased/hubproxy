@@ -139,12 +139,16 @@ func (s *BaseStorage) CountEvents(ctx context.Context, opts storage.QueryOptions
 	return count, nil
 }
 
-// GetEventTypeStats gets event type statistics
-func (s *BaseStorage) GetEventTypeStats(ctx context.Context, since time.Time) (map[string]int64, error) {
-	query := s.builder.Select("type", "COUNT(*) as count").
+// GetStats returns event type statistics
+func (s *BaseStorage) GetStats(ctx context.Context, since time.Time) (map[string]int64, error) {
+	query := s.builder.
+		Select("type", "COUNT(*) as count").
 		From(s.tableName).
-		Where(sq.GtOrEq{"created_at": since}).
 		GroupBy("type")
+
+	if !since.IsZero() {
+		query = query.Where(sq.GtOrEq{"created_at": since})
+	}
 
 	rows, err := query.RunWith(s.db).QueryContext(ctx)
 	if err != nil {
@@ -154,8 +158,10 @@ func (s *BaseStorage) GetEventTypeStats(ctx context.Context, since time.Time) (m
 
 	stats := make(map[string]int64)
 	for rows.Next() {
-		var eventType string
-		var count int64
+		var (
+			eventType string
+			count     int64
+		)
 		if err := rows.Scan(&eventType, &count); err != nil {
 			return nil, fmt.Errorf("scanning row: %w", err)
 		}
@@ -163,6 +169,42 @@ func (s *BaseStorage) GetEventTypeStats(ctx context.Context, since time.Time) (m
 	}
 
 	return stats, nil
+}
+
+// GetEvent returns a single event by ID
+func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, error) {
+	query := s.builder.
+		Select("id", "type", "payload", "created_at", "status", "error", "repository", "sender").
+		From(s.tableName).
+		Where(sq.Eq{"id": id}).
+		Limit(1)
+
+	rows, err := query.RunWith(s.db).QueryContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("executing query: %w", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return nil, nil
+	}
+
+	event := &storage.Event{}
+	err = rows.Scan(
+		&event.ID,
+		&event.Type,
+		&event.Payload,
+		&event.CreatedAt,
+		&event.Status,
+		&event.Error,
+		&event.Repository,
+		&event.Sender,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("scanning row: %w", err)
+	}
+
+	return event, nil
 }
 
 // addQueryConditions adds WHERE conditions based on query options

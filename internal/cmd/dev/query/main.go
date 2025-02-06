@@ -16,7 +16,7 @@ func main() {
 	var (
 		limit     = flag.Int("limit", 10, "Maximum number of events to show")
 		since     = flag.Duration("since", 24*time.Hour, "Show events since duration (e.g. 1h, 24h)")
-		stats     = flag.Bool("stats", false, "Show event type statistics")
+		stats     = flag.Bool("stats", true, "Show event type statistics")
 		dbPath    = flag.String("db", ".cache/hubproxy.db", "Path to SQLite database")
 		eventType = flag.String("type", "", "Filter by event type (e.g. push, pull_request)")
 		repo      = flag.String("repo", "", "Filter by repository (e.g. owner/repo)")
@@ -37,17 +37,25 @@ func main() {
 	if *stats {
 		sinceTime := time.Now().Add(-*since)
 		var eventStats map[string]int64
-		eventStats, err = store.GetEventTypeStats(context.Background(), sinceTime)
-		if err != nil {
-			log.Fatalf("Failed to get event stats: %v", err)
+		var getStatsErr error
+
+		if len(os.Args) > 1 {
+			sinceTime, getStatsErr = time.Parse(time.RFC3339, os.Args[1])
+			if getStatsErr != nil {
+				log.Fatal(getStatsErr)
+			}
 		}
-		fmt.Println("\nEvent Type Statistics:")
-		fmt.Println("----------------------")
-		for typ, count := range eventStats {
-			fmt.Printf("%-20s %d\n", typ, count)
+
+		eventStats, getStatsErr = store.GetStats(context.Background(), sinceTime)
+		if getStatsErr != nil {
+			log.Fatalf("Failed to get event type stats: %v", getStatsErr)
 		}
-		fmt.Println()
-		os.Exit(0)
+
+		fmt.Printf("\nEvent Type Statistics (since %s):\n", sinceTime.Format(time.RFC3339))
+		for eventType, count := range eventStats {
+			fmt.Printf("  %s: %d\n", eventType, count)
+		}
+		return
 	}
 
 	// Query events

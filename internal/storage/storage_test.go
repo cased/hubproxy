@@ -31,6 +31,21 @@ func TestStorageImplementations(t *testing.T) {
 	err := store.StoreEvent(ctx, event)
 	require.NoError(t, err)
 
+	// Create a pull_request event
+	pullRequestEvent := &storage.Event{
+		ID:         "test-event-2",
+		Type:       "pull_request",
+		Payload:    []byte(`{"action": "opened"}`),
+		CreatedAt:  time.Now().UTC(),
+		Status:     "completed",
+		Error:      "",
+		Repository: "test/repo",
+		Sender:     "test-user",
+	}
+
+	err = store.StoreEvent(ctx, pullRequestEvent)
+	require.NoError(t, err)
+
 	// Test event update by storing with same ID
 	event.Status = "completed"
 	event.Error = "no error"
@@ -53,17 +68,21 @@ func TestStorageImplementations(t *testing.T) {
 	assert.Equal(t, "completed", events[0].Status)
 	assert.Equal(t, "no error", events[0].Error)
 
-	// Test event type stats
-	since := time.Now().Add(-24 * time.Hour)
-	stats, err := store.GetEventTypeStats(ctx, since)
-	require.NoError(t, err)
-	assert.Len(t, stats, 1)
-	assert.Equal(t, int64(1), stats["push"])
+	// Test getting event type stats
+	t.Run("GetEventTypeStats", func(t *testing.T) {
+		stats, statsErr := store.GetStats(ctx, time.Time{})
+		require.NoError(t, statsErr)
+		require.NotNil(t, stats)
+
+		// Verify stats
+		require.Equal(t, int64(1), stats["push"])
+		require.Equal(t, int64(1), stats["pull_request"])
+	})
 
 	// Test count events
 	count, err := store.CountEvents(ctx, storage.QueryOptions{
 		Types: []string{"push"},
-		Since: since,
+		Since: time.Now().Add(-24 * time.Hour),
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)

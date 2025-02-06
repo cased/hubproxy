@@ -258,7 +258,19 @@ Lists webhook events with filtering and pagination.
     {
       "id": "d2a1f85a-delivery-id-123",
       "type": "push",
-      "payload": { ... },
+      "payload": {
+        "ref": "refs/heads/main",
+        "before": "6113728f27ae82c7b1a177c8d03f9e96e0adf246",
+        "after": "76ae82c7b1a177c8d03f9e96e0adf2466113728f",
+        "repository": {
+          "full_name": "owner/repo",
+          "private": false
+        },
+        "pusher": {
+          "name": "username",
+          "email": "user@example.com"
+        }
+      },
       "created_at": "2024-02-06T00:00:00Z",
       "status": "received",
       "repository": "owner/repo",
@@ -302,7 +314,19 @@ Replays a specific webhook event by its ID. The ID should be GitHub's original d
 {
   "id": "d2a1f85a-delivery-id-123",
   "type": "push",
-  "payload": { ... },
+  "payload": {
+    "ref": "refs/heads/main",
+    "before": "6113728f27ae82c7b1a177c8d03f9e96e0adf246",
+    "after": "76ae82c7b1a177c8d03f9e96e0adf2466113728f",
+    "repository": {
+      "full_name": "owner/repo",
+      "private": false
+    },
+    "pusher": {
+      "name": "username",
+      "email": "user@example.com"
+    }
+  },
   "created_at": "2024-02-06T00:00:00Z",
   "status": "replayed",
   "repository": "owner/repo",
@@ -333,7 +357,19 @@ Replays all webhook events within a specified time range.
     {
       "id": "d2a1f85a-delivery-id-123",
       "type": "push",
-      "payload": { ... },
+      "payload": {
+        "ref": "refs/heads/main",
+        "before": "6113728f27ae82c7b1a177c8d03f9e96e0adf246",
+        "after": "76ae82c7b1a177c8d03f9e96e0adf2466113728f",
+        "repository": {
+          "full_name": "owner/repo",
+          "private": false
+        },
+        "pusher": {
+          "name": "username",
+          "email": "user@example.com"
+        }
+      },
       "created_at": "2024-02-06T00:00:00Z",
       "status": "replayed",
       "repository": "owner/repo",
