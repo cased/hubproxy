@@ -54,9 +54,9 @@ cleanup
 mkdir -p "$(dirname "$DB_PATH")"
 
 # Export development environment variables
-echo "Previous webhook secret: $GITHUB_WEBHOOK_SECRET"
-export GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET:-$DEFAULT_SECRET}
-echo "Using webhook secret: $GITHUB_WEBHOOK_SECRET (default: $DEFAULT_SECRET)"
+echo "Previous webhook secret: $HUBPROXY_WEBHOOK_SECRET"
+export HUBPROXY_WEBHOOK_SECRET=${HUBPROXY_WEBHOOK_SECRET:-$DEFAULT_SECRET}
+echo "Using webhook secret: $HUBPROXY_WEBHOOK_SECRET (default: $DEFAULT_SECRET)"
 
 # Start the test server in the background
 echo "Starting test server..."

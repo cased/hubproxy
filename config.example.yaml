@@ -2,21 +2,21 @@
 # Copy this file to config.yaml and adjust the values
 
 # Note: Sensitive values like webhook secrets should be provided via environment variables
-# Use GITHUB_WEBHOOK_SECRET environment variable for the webhook secret
+# Use HUBPROXY_WEBHOOK_SECRET environment variable for the webhook secret
 
 # Target URL to forward webhooks to
-target_url: ""
+target-url: ""
 
 # Log level (debug, info, warn, error)
-log_level: info
+log-level: info
 
 # Validate that requests come from GitHub IPs
-validate_ip: true
+validate-ip: true
 
 # Tailscale configuration
-ts_authkey: ""
-ts_hostname: hubproxy
+ts-authkey: ""
+ts-hostname: hubproxy
 
 # Database configuration
-db_type: sqlite  # sqlite, mysql, or postgres
-db_dsn: hubproxy.db
+db-type: sqlite  # sqlite, mysql, or postgres
+db-dsn: hubproxy.db
