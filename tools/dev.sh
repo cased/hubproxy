@@ -69,7 +69,7 @@ sleep 2
 
 # Start the proxy
 echo "Starting webhook proxy..."
-go run cmd/proxy/main.go \
+go run cmd/hubproxy/main.go \
     --target "http://localhost:$TARGET_PORT" \
     --db sqlite \
     --db-dsn "$DB_PATH" \
