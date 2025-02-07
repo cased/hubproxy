@@ -44,7 +44,7 @@ build:
 
 .PHONY: run-proxy
 run-proxy:
-	go run ./cmd/proxy
+	go run ./cmd/hubproxy
 
 .PHONY: run-testserver
 run-testserver:
