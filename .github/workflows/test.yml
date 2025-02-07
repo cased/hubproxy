@@ -59,7 +59,7 @@ jobs:
         go run internal/cmd/dev/testserver/main.go --port 8082 &
         
         # Start proxy in background
-        go run cmd/proxy/main.go --secret test-secret --target http://localhost:8082 --validate-ip=false &
+        go run cmd/hubproxy/main.go --secret test-secret --target http://localhost:8082 --validate-ip=false &
         
         # Wait for services to be ready
         sleep 5
