@@ -205,7 +205,7 @@ event, err := storage.ReplayEvent("d2a1f85a-delivery-id-123")
    ./tools/dev.sh
 
    # Customize webhook secret
-   GITHUB_WEBHOOK_SECRET=my-secret ./tools/dev.sh
+   HUBPROXY_WEBHOOK_SECRET=my-secret ./tools/dev.sh
 
    # Customize test server port
    ./tools/dev.sh --target-port 8083
@@ -216,7 +216,7 @@ event, err := storage.ReplayEvent("d2a1f85a-delivery-id-123")
    - Start the webhook proxy with GitHub IP validation disabled
 
    Default settings:
-   - Webhook secret: `dev-secret` (via GITHUB_WEBHOOK_SECRET env var)
+   - Webhook secret: `dev-secret` (via HUBPROXY_WEBHOOK_SECRET env var)
    - Test server port: 8082
    - SQLite database: `.cache/hubproxy.db`
 
@@ -484,7 +484,7 @@ HubProxy can be configured using either command-line flags or a YAML configurati
 
 Sensitive configuration values should be provided through environment variables:
 
-- `GITHUB_WEBHOOK_SECRET`: GitHub webhook secret for verification (required)
+- `HUBPROXY_WEBHOOK_SECRET`: GitHub webhook secret for verification (required)
 
 ### Configuration File
 
@@ -492,27 +492,27 @@ Create a `config.yaml` file (see `config.example.yaml` for a template) with your
 
 ```yaml
 # Target URL to forward webhooks to
-target_url: "http://your-service:8080/webhook"
+target-url: "http://your-service:8080/webhook"
 
 # Log level (debug, info, warn, error)
-log_level: info
+log-level: info
 
 # Validate that requests come from GitHub IPs
-validate_ip: true
+validate-ip: true
 
 # Tailscale configuration (optional)
-ts_authkey: ""
-ts_hostname: hubproxy
+ts-authkey: ""
+ts-hostname: hubproxy
 
 # Database configuration
-db_type: sqlite  # sqlite, mysql, or postgres
-db_dsn: hubproxy.db
+db-type: sqlite  # sqlite, mysql, or postgres
+db-dsn: hubproxy.db
 ```
 
 To use a configuration file, specify its path with the `--config` flag:
 
 ```bash
-export GITHUB_WEBHOOK_SECRET="your-secret-here"
+export HUBPROXY_WEBHOOK_SECRET="your-secret-here"
 hubproxy --config config.yaml
 ```
 
