@@ -14,6 +14,19 @@ import (
 
 	"hubproxy/internal/security"
 	"hubproxy/internal/storage"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	webhookEvents = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_events_total",
+			Help: "Total number of webhook events received",
+		},
+		[]string{"event_type", "status"},
+	)
 )
 
 type Handler struct {
@@ -151,28 +164,46 @@ func (h *Handler) Forward(payload []byte, headers http.Header) error {
 // ServeHTTP handles incoming webhook requests
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		h.logger.Error("validation error", "error", fmt.Sprintf("invalid method: %s", r.Method))
-		http.Error(w, fmt.Sprintf("invalid method: %s", r.Method), http.StatusMethodNotAllowed)
+		h.logger.Error("invalid method", "method", r.Method)
+		webhookEvents.WithLabelValues("unknown", "error").Inc()
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	if err := h.ValidateGitHubEvent(r); err != nil {
-		h.logger.Error("validation error", "error", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	// Validate GitHub IP if enabled
+	if h.ipValidator != nil {
+		ip := strings.Split(r.RemoteAddr, ":")[0]
+		if !h.ipValidator.IsGitHubIP(ip) {
+			h.logger.Error("request from non-GitHub IP", "ip", ip)
+			webhookEvents.WithLabelValues("unknown", "error").Inc()
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 	}
 
+	// Read and verify payload
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
-		h.logger.Error("error reading body", "error", err)
-		http.Error(w, "Error reading request body", http.StatusInternalServerError)
+		h.logger.Error("failed to read payload", "error", err)
+		webhookEvents.WithLabelValues("unknown", "error").Inc()
+		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
 
+	// Verify signature
 	if err := h.VerifySignature(r.Header, payload); err != nil {
-		h.logger.Error("signature verification error", "error", err)
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		h.logger.Error("signature verification failed", "error", err)
+		webhookEvents.WithLabelValues("unknown", "error").Inc()
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Parse event type
+	eventType := r.Header.Get("X-GitHub-Event")
+	if eventType == "" {
+		h.logger.Error("missing event type")
+		webhookEvents.WithLabelValues("unknown", "error").Inc()
+		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
@@ -209,13 +240,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Forward to target
 	if h.targetURL != "" {
 		if err := h.Forward(payload, r.Header); err != nil {
-			h.logger.Error("forwarding error", "error", err)
-			http.Error(w, err.Error(), http.StatusBadGateway)
+			h.logger.Error("failed to forward webhook", "error", err)
+			webhookEvents.WithLabelValues(eventType, "error").Inc()
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 	}
 
+	// Record successful event
+	webhookEvents.WithLabelValues(eventType, "success").Inc()
 	w.WriteHeader(http.StatusOK)
 }

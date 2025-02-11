@@ -17,6 +17,7 @@ import (
 	"hubproxy/internal/webhook"
 	"log/slog"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"tailscale.com/tsnet"
@@ -177,6 +178,7 @@ func run() error {
 	mux.Handle("/api/stats", http.HandlerFunc(apiHandler.GetStats))
 	mux.Handle("/api/events/", http.HandlerFunc(apiHandler.ReplayEvent)) // Handle replay endpoint
 	mux.Handle("/api/replay", http.HandlerFunc(apiHandler.ReplayRange))  // Handle range replay
+	mux.Handle("/metrics", promhttp.Handler())                           // Add Prometheus metrics endpoint
 
 	// Start server
 	var srv *http.Server
