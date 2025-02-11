@@ -2,159 +2,178 @@ package sql
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
-	"math"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/xo/dburl"
 
 	"hubproxy/internal/storage"
-	"hubproxy/internal/storage/sql/sqldb"
 )
 
 type Storage struct {
-	db      *pgxpool.Pool
-	queries *sqldb.Queries
+	*BaseStorage
+	db *sql.DB
 }
 
-func NewStorage(ctx context.Context, dsn string) (*Storage, error) {
-	config, err := pgxpool.ParseConfig(dsn)
+func NewStorage(ctx context.Context, dsn string) (storage.Storage, error) {
+	// Open database using dburl
+	db, err := dburl.Open(dsn)
 	if err != nil {
-		return nil, fmt.Errorf("parsing connection string: %w", err)
+		return nil, fmt.Errorf("opening database: %w", err)
 	}
 
-	db, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		return nil, fmt.Errorf("connecting to database: %w", err)
-	}
-
-	if err := db.Ping(ctx); err != nil {
+	if err := db.PingContext(ctx); err != nil {
+		db.Close()
 		return nil, fmt.Errorf("pinging database: %w", err)
 	}
 
+	// Get the driver name from the URL
+	u, err := dburl.Parse(dsn)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("parsing DSN: %w", err)
+	}
+
+	// Create dialect based on driver
+	var dialect SQLDialect
+	switch u.Driver {
+	case "sqlite3":
+		dialect = &SQLiteDialect{}
+	case "postgres":
+		dialect = &PostgresDialect{}
+	case "mysql":
+		dialect = &MySQLDialect{}
+	default:
+		db.Close()
+		return nil, fmt.Errorf("unsupported database driver: %s", u.Driver)
+	}
+
+	base := NewBaseStorage(db, dialect, "events")
 	return &Storage{
-		db:      db,
-		queries: sqldb.New(db),
+		BaseStorage: base,
+		db:          db,
 	}, nil
 }
 
-func (s *Storage) Close() {
-	s.db.Close()
+func (s *Storage) Close() error {
+	return s.db.Close()
 }
 
-func (s *Storage) CreateEvent(ctx context.Context, event *storage.Event) error {
+func (s *Storage) CreateSchema(ctx context.Context) error {
+	sql := s.dialect.CreateTableSQL(s.tableName)
+	_, err := s.db.ExecContext(ctx, sql)
+	return err
+}
+
+func (s *Storage) StoreEvent(ctx context.Context, event *storage.Event) error {
 	if event.ID == "" {
 		event.ID = uuid.New().String()
 	}
-	if event.CreatedAt.IsZero() {
-		event.CreatedAt = time.Now()
-	}
-
-	payload, err := json.Marshal(event.Payload)
-	if err != nil {
-		return fmt.Errorf("marshaling payload: %w", err)
-	}
-
-	dbEvent, err := s.queries.CreateEvent(ctx, sqldb.CreateEventParams{
-		ID:         event.ID,
-		Type:       event.Type,
-		Payload:    payload,
-		CreatedAt:  event.CreatedAt,
-		Status:     event.Status,
-		Error:      event.Error,
-		Repository: event.Repository,
-		Sender:     event.Sender,
-	})
-	if err != nil {
-		return fmt.Errorf("creating event: %w", err)
-	}
-
-	event.ID = dbEvent.ID
-	return nil
+	return s.BaseStorage.StoreEvent(ctx, event)
 }
 
 func (s *Storage) GetEvent(ctx context.Context, id string) (*storage.Event, error) {
-	dbEvent, err := s.queries.GetEvent(ctx, id)
+	query := s.builder.
+		Select("id", "type", "payload", "created_at", "status", "error", "repository", "sender").
+		From(s.tableName).
+		Where("id = ?", id).
+		Limit(1)
+
+	var event storage.Event
+	var payload []byte
+	err := query.RunWith(s.db).QueryRowContext(ctx).Scan(
+		&event.ID,
+		&event.Type,
+		&payload,
+		&event.CreatedAt,
+		&event.Status,
+		&event.Error,
+		&event.Repository,
+		&event.Sender,
+	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("event not found")
+		if err == sql.ErrNoRows {
+			return nil, nil
 		}
-		return nil, fmt.Errorf("getting event: %w", err)
+		return nil, fmt.Errorf("scanning event: %w", err)
 	}
 
-	return convertDBEvent(dbEvent), nil
+	event.Payload = json.RawMessage(payload)
+	return &event, nil
 }
 
-func (s *Storage) ListEvents(ctx context.Context, opts storage.QueryOptions) ([]*storage.Event, error) {
-	params := sqldb.ListEventsParams{
-		Column1: opts.Types,
-		Column2: opts.Repository,
-		Column5: opts.Status,
-		Column6: opts.Sender,
-	}
+func (s *Storage) ListEvents(ctx context.Context, opts storage.QueryOptions) ([]*storage.Event, int, error) {
+	query := s.builder.
+		Select("id", "type", "payload", "created_at", "status", "error", "repository", "sender").
+		From(s.tableName)
 
-	// Ensure values are within int32 bounds
-	limit := opts.Limit
-	if limit < math.MinInt32 {
-		limit = math.MinInt32
-	} else if limit > math.MaxInt32 {
-		limit = math.MaxInt32
-	}
-	offset := opts.Offset
-	if offset < math.MinInt32 {
-		offset = math.MinInt32
-	} else if offset > math.MaxInt32 {
-		offset = math.MaxInt32
-	}
-	// Safe to convert to int32 since values are guaranteed to be within bounds
-	//nolint:gosec // Values are guaranteed to be within int32 bounds
-	params.Limit = int32(limit)
-	params.Offset = int32(offset) //nolint:gosec // Values are guaranteed to be within int32 bounds
+	query = s.addQueryConditions(query, opts)
 
-	if !opts.Since.IsZero() {
-		params.Column3 = pgtype.Timestamp{Time: opts.Since, Valid: true}
-	}
-	if !opts.Until.IsZero() {
-		params.Column4 = pgtype.Timestamp{Time: opts.Until, Valid: true}
-	}
+	// Get total count first
+	countQuery := s.builder.Select("COUNT(*)").From(s.tableName)
+	countQuery = s.addQueryConditions(countQuery, opts)
 
-	dbEvents, err := s.queries.ListEvents(ctx, params)
+	var total int
+	err := countQuery.RunWith(s.db).QueryRowContext(ctx).Scan(&total)
 	if err != nil {
-		return nil, fmt.Errorf("listing events: %w", err)
+		return nil, 0, fmt.Errorf("counting events: %w", err)
 	}
 
-	events := make([]*storage.Event, len(dbEvents))
-	for i, dbEvent := range dbEvents {
-		events[i] = convertDBEvent(dbEvent)
+	// Add pagination
+	if opts.Limit > 0 {
+		query = query.Limit(uint64(opts.Limit))
 	}
-	return events, nil
+	if opts.Offset > 0 {
+		query = query.Offset(uint64(opts.Offset))
+	}
+
+	rows, err := query.RunWith(s.db).QueryContext(ctx)
+	if err != nil {
+		return nil, 0, fmt.Errorf("querying events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []*storage.Event
+	for rows.Next() {
+		var event storage.Event
+		var payload []byte
+		err := rows.Scan(
+			&event.ID,
+			&event.Type,
+			&payload,
+			&event.CreatedAt,
+			&event.Status,
+			&event.Error,
+			&event.Repository,
+			&event.Sender,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scanning event: %w", err)
+		}
+		event.Payload = json.RawMessage(payload)
+		events = append(events, &event)
+	}
+
+	return events, total, rows.Err()
 }
 
 func (s *Storage) CountEvents(ctx context.Context, opts storage.QueryOptions) (int, error) {
-	params := sqldb.CountEventsParams{
-		Column1: opts.Types,
-		Column2: opts.Repository,
-		Column5: opts.Status,
-		Column6: opts.Sender,
-	}
+	query := s.builder.Select("COUNT(*)").From(s.tableName)
+	query = s.addQueryConditions(query, opts)
 
-	if !opts.Since.IsZero() {
-		params.Column3 = pgtype.Timestamp{Time: opts.Since, Valid: true}
-	}
-	if !opts.Until.IsZero() {
-		params.Column4 = pgtype.Timestamp{Time: opts.Until, Valid: true}
-	}
-
-	count, err := s.queries.CountEvents(ctx, params)
+	var count int
+	err := query.RunWith(s.db).QueryRowContext(ctx).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("counting events: %w", err)
 	}
 
-	return int(count), nil
+	return count, nil
 }
 
 func (s *Storage) UpdateEventStatus(ctx context.Context, id string, status string, err error) error {
@@ -163,58 +182,55 @@ func (s *Storage) UpdateEventStatus(ctx context.Context, id string, status strin
 		errStr = err.Error()
 	}
 
-	_, dbErr := s.queries.UpdateEventStatus(ctx, sqldb.UpdateEventStatusParams{
-		ID:     id,
-		Status: status,
-		Error:  errStr,
-	})
-	if dbErr != nil {
-		if dbErr == pgx.ErrNoRows {
-			return fmt.Errorf("event not found")
-		}
-		return fmt.Errorf("updating event status: %w", dbErr)
+	query := s.builder.
+		Update(s.tableName).
+		Set("status", status).
+		Set("error", errStr).
+		Where("id = ?", id)
+
+	result, err := query.RunWith(s.db).ExecContext(ctx)
+	if err != nil {
+		return fmt.Errorf("updating event status: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("getting rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("event not found")
 	}
 
 	return nil
 }
 
-func (s *Storage) GetEventTypeStats(ctx context.Context, since, until time.Time) ([]storage.TypeStat, error) {
-	params := sqldb.GetEventTypeStatsParams{}
+func (s *Storage) GetStats(ctx context.Context, since time.Time) (map[string]int64, error) {
+	query := s.builder.
+		Select("type", "COUNT(*) as count").
+		From(s.tableName).
+		GroupBy("type")
+
 	if !since.IsZero() {
-		params.Column1 = pgtype.Timestamp{Time: since, Valid: true}
-	}
-	if !until.IsZero() {
-		params.Column2 = pgtype.Timestamp{Time: until, Valid: true}
+		query = query.Where("created_at >= ?", since)
 	}
 
-	stats, err := s.queries.GetEventTypeStats(ctx, params)
+	rows, err := query.RunWith(s.db).QueryContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("getting event type stats: %w", err)
+		return nil, fmt.Errorf("querying stats: %w", err)
 	}
+	defer rows.Close()
 
-	result := make([]storage.TypeStat, len(stats))
-	for i, stat := range stats {
-		result[i] = storage.TypeStat{
-			Type:  stat.Type,
-			Count: stat.Count,
+	stats := make(map[string]int64)
+	for rows.Next() {
+		var (
+			eventType string
+			count     int64
+		)
+		if err := rows.Scan(&eventType, &count); err != nil {
+			return nil, fmt.Errorf("scanning stats: %w", err)
 		}
+		stats[eventType] = count
 	}
-	return result, nil
-}
 
-func convertDBEvent(e sqldb.Event) *storage.Event {
-	var payload json.RawMessage
-	if len(e.Payload) > 0 {
-		payload = json.RawMessage(e.Payload)
-	}
-	return &storage.Event{
-		ID:         e.ID,
-		Type:       e.Type,
-		Payload:    payload,
-		CreatedAt:  e.CreatedAt,
-		Status:     e.Status,
-		Error:      e.Error,
-		Repository: e.Repository,
-		Sender:     e.Sender,
-	}
+	return stats, rows.Err()
 }
