@@ -521,7 +521,7 @@ hubproxy --config config.yaml
 Most configuration options can also be set via command-line flags:
 
 - `--config`: Path to config file (optional)
-- `--target`: Target URL to forward webhooks to
+- `--target-url`: Target URL to forward webhooks to
 - `--log-level`: Log level (debug, info, warn, error)
 - `--validate-ip`: Validate that requests come from GitHub IPs
 - `--ts-authkey`: Tailscale auth key for tsnet

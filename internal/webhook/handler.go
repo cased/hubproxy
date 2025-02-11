@@ -124,6 +124,14 @@ func (h *Handler) TargetURL() string {
 }
 
 func (h *Handler) Forward(payload []byte, headers http.Header) error {
+	if h.targetURL == "" {
+		// In log-only mode, just log the event
+		h.logger.Info("webhook received in log-only mode",
+			"event", headers.Get("X-GitHub-Event"),
+			"delivery", headers.Get("X-GitHub-Delivery"))
+		return nil
+	}
+
 	req, err := http.NewRequest(http.MethodPost, h.targetURL, strings.NewReader(string(payload)))
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
