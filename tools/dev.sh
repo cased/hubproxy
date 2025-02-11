@@ -71,7 +71,6 @@ sleep 2
 echo "Starting webhook proxy..."
 go run cmd/hubproxy/main.go \
     --target "http://localhost:$TARGET_PORT" \
-    --db sqlite \
-    --db-dsn "$DB_PATH" \
+    --db "sqlite:$DB_PATH" \
     --validate-ip=false \
     --log-level debug

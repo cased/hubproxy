@@ -86,13 +86,13 @@ HubProxy uses [SQLC](https://sqlc.dev/) to generate type-safe Go code from SQL q
 SQLite is used by default for development, but PostgreSQL or MySQL are recommended for production:
 ```bash
 # SQLite (default for development)
-hubproxy --db sqlite --db-dsn ".cache/hubproxy.db"
+hubproxy --db sqlite:.cache/hubproxy.db
 
 # PostgreSQL
-hubproxy --db postgres --db-dsn "postgres://user:password@localhost:5432/hubproxy?sslmode=disable"
+hubproxy --db "postgres://user:password@localhost:5432/hubproxy?sslmode=disable"
 
 # MySQL
-hubproxy --db mysql --db-dsn "user:password@tcp(localhost:3306)/hubproxy"
+hubproxy --db "mysql://user:password@tcp(localhost:3306)/hubproxy"
 ```
 
 ### Schema
@@ -505,8 +505,9 @@ ts-authkey: ""
 ts-hostname: hubproxy
 
 # Database configuration
-db-type: sqlite  # sqlite, mysql, or postgres
-db-dsn: hubproxy.db
+db: sqlite:hubproxy.db
+# db: mysql://user:pass@host/db
+# db: postgres://user:pass@host/db
 ```
 
 To use a configuration file, specify its path with the `--config` flag:
@@ -526,11 +527,7 @@ Most configuration options can also be set via command-line flags:
 - `--validate-ip`: Validate that requests come from GitHub IPs
 - `--ts-authkey`: Tailscale auth key for tsnet
 - `--ts-hostname`: Tailscale hostname
-- `--db`: Database type (sqlite, mysql, postgres)
-- `--db-dsn`: Database connection string
-  - SQLite: path to file
-  - MySQL: user:pass@tcp(host:port)/dbname
-  - Postgres: postgres://user:pass@host:port/dbname
+- `--db`: Database URI (e.g., sqlite:file.db, mysql://user:pass@host/db, postgresql://user:pass@host/db)
 
 Command-line flags take precedence over values in the configuration file.
 

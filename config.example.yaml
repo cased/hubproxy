@@ -18,5 +18,6 @@ ts-authkey: ""
 ts-hostname: hubproxy
 
 # Database configuration
-db-type: sqlite  # sqlite, mysql, or postgres
-db-dsn: hubproxy.db
+db: sqlite:hubproxy.db
+# db: mysql://user:pass@host/db
+# db: postgres://user:pass@host/db

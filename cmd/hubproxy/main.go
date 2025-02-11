@@ -10,10 +10,7 @@ import (
 	"time"
 
 	"hubproxy/internal/api"
-	"hubproxy/internal/storage"
-	"hubproxy/internal/storage/sql/mysql"
-	"hubproxy/internal/storage/sql/postgres"
-	"hubproxy/internal/storage/sql/sqlite"
+	"hubproxy/internal/storage/factory"
 	"hubproxy/internal/webhook"
 	"log/slog"
 
@@ -76,8 +73,7 @@ and your target services.`,
 	flags.Bool("validate-ip", true, "Validate that requests come from GitHub IPs")
 	flags.String("ts-authkey", "", "Tailscale auth key for tsnet")
 	flags.String("ts-hostname", "hubproxy", "Tailscale hostname (will be <hostname>.<tailnet>.ts.net)")
-	flags.String("db-type", "sqlite", "Database type (sqlite, mysql, postgres)")
-	flags.String("db-dsn", "hubproxy.db", "Database DSN (connection string)")
+	flags.String("db", "sqlite:hubproxy.db", "Database URI (e.g., sqlite:hubproxy.db, mysql://user:pass@host/db, postgres://user:pass@host/db)")
 	flags.Bool("test-mode", false, "Skip server startup for testing")
 
 	return cmd
@@ -121,36 +117,9 @@ func run() error {
 	}
 
 	// Initialize storage
-	var store storage.Storage
-	var storageErr error
-	switch viper.GetString("db-type") {
-	case "sqlite":
-		store, storageErr = sqlite.NewStorage(viper.GetString("db-dsn"))
-	case "mysql":
-		var mysqlCfg storage.Config
-		mysqlCfg, storageErr = parseMySQLDSN(viper.GetString("db-dsn"))
-		if storageErr != nil {
-			return fmt.Errorf("invalid MySQL DSN: %w", storageErr)
-		}
-		store, storageErr = mysql.NewStorage(mysqlCfg)
-		if storageErr != nil {
-			return fmt.Errorf("failed to initialize MySQL storage: %w", storageErr)
-		}
-	case "postgres":
-		var pgCfg storage.Config
-		pgCfg, storageErr = parsePostgresDSN(viper.GetString("db-dsn"))
-		if storageErr != nil {
-			return fmt.Errorf("invalid Postgres DSN: %w", storageErr)
-		}
-		store, storageErr = postgres.NewStorage(pgCfg)
-		if storageErr != nil {
-			return fmt.Errorf("failed to initialize Postgres storage: %w", storageErr)
-		}
-	default:
-		return fmt.Errorf("unsupported database type: %s", viper.GetString("db-type"))
-	}
-	if storageErr != nil {
-		return fmt.Errorf("failed to initialize storage: %w", storageErr)
+	store, err := factory.NewStorageFromURI(viper.GetString("db"))
+	if err != nil {
+		return fmt.Errorf("failed to initialize storage: %w", err)
 	}
 	defer store.Close()
 
@@ -237,77 +206,4 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-}
-
-// parseMySQLDSN parses MySQL DSN into Config
-// Format: user:pass@tcp(host:port)/dbname
-func parseMySQLDSN(dsn string) (storage.Config, error) {
-	// Extract username and password
-	parts := strings.Split(dsn, "@")
-	if len(parts) != 2 {
-		return storage.Config{}, fmt.Errorf("invalid MySQL DSN format")
-	}
-	userPass := parts[0]
-	credentials := strings.Split(userPass, ":")
-	if len(credentials) != 2 {
-		return storage.Config{}, fmt.Errorf("invalid MySQL DSN format")
-	}
-	username := credentials[0]
-	password := credentials[1]
-
-	// Extract host and port from tcp(host:port)
-	remainder := parts[1]
-	tcpParts := strings.Split(remainder, ")/")
-	if len(tcpParts) != 2 {
-		return storage.Config{}, fmt.Errorf("invalid MySQL DSN format")
-	}
-
-	hostPort := strings.TrimPrefix(tcpParts[0], "tcp(")
-	hostPortParts := strings.Split(hostPort, ":")
-	if len(hostPortParts) != 2 {
-		return storage.Config{}, fmt.Errorf("invalid MySQL DSN format")
-	}
-	host := hostPortParts[0]
-	var port int
-	if _, err := fmt.Sscanf(hostPortParts[1], "%d", &port); err != nil {
-		return storage.Config{}, fmt.Errorf("parsing port: %w", err)
-	}
-
-	// Extract database name
-	database := strings.Split(tcpParts[1], "?")[0]
-
-	return storage.Config{
-		Host:     host,
-		Port:     port,
-		Database: database,
-		Username: username,
-		Password: password,
-	}, nil
-}
-
-// parsePostgresDSN parses Postgres DSN into Config
-// Format: postgres://user:pass@host:port/dbname
-func parsePostgresDSN(dsn string) (storage.Config, error) {
-	u, err := url.Parse(dsn)
-	if err != nil {
-		return storage.Config{}, fmt.Errorf("parsing PostgreSQL DSN: %w", err)
-	}
-
-	password, _ := u.User.Password()
-	var port int
-	if u.Port() != "" {
-		if _, err := fmt.Sscanf(u.Port(), "%d", &port); err != nil {
-			return storage.Config{}, fmt.Errorf("parsing port: %w", err)
-		}
-	} else {
-		port = 5432 // default postgres port
-	}
-
-	return storage.Config{
-		Host:     u.Hostname(),
-		Port:     port,
-		Database: strings.TrimPrefix(u.Path, "/"),
-		Username: u.User.Username(),
-		Password: password,
-	}, nil
 }
