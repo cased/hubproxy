@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"hubproxy/internal/api"
+	"hubproxy/internal/storage"
 	"hubproxy/internal/storage/factory"
 	"hubproxy/internal/webhook"
 	"log/slog"
@@ -73,7 +74,7 @@ and your target services.`,
 	flags.Bool("validate-ip", true, "Validate that requests come from GitHub IPs")
 	flags.String("ts-authkey", "", "Tailscale auth key for tsnet")
 	flags.String("ts-hostname", "hubproxy", "Tailscale hostname (will be <hostname>.<tailnet>.ts.net)")
-	flags.String("db", "sqlite:hubproxy.db", "Database URI (e.g., sqlite:hubproxy.db, mysql://user:pass@host/db, postgres://user:pass@host/db)")
+	flags.String("db", "", "Database URI (e.g., sqlite:hubproxy.db, mysql://user:pass@host/db, postgres://user:pass@host/db)")
 	flags.Bool("test-mode", false, "Skip server startup for testing")
 
 	return cmd
@@ -116,15 +117,20 @@ func run() error {
 		return fmt.Errorf("invalid target URL: %w", err)
 	}
 
-	// Initialize storage
-	store, err := factory.NewStorageFromURI(viper.GetString("db"))
-	if err != nil {
-		return fmt.Errorf("failed to initialize storage: %w", err)
-	}
-	defer store.Close()
+	// Initialize storage if DB URI is provided
+	var store storage.Storage
+	dbURI := viper.GetString("db")
+	if dbURI != "" {
+		var err error
+		store, err = factory.NewStorageFromURI(dbURI)
+		if err != nil {
+			return fmt.Errorf("failed to initialize storage: %w", err)
+		}
+		defer store.Close()
 
-	if err := store.CreateSchema(context.Background()); err != nil {
-		return fmt.Errorf("failed to create schema: %w", err)
+		if err := store.CreateSchema(context.Background()); err != nil {
+			return fmt.Errorf("failed to create schema: %w", err)
+		}
 	}
 
 	// Create webhook handler
