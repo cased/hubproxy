@@ -94,7 +94,6 @@ fi
 
 go run cmd/hubproxy/main.go \
     --target-url "$TARGET_URL" \
-    --db-type sqlite \
-    --db-dsn "$DB_PATH" \
+    --db "sqlite:$DB_PATH" \
     --validate-ip=false \
     --log-level debug
