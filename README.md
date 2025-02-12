@@ -485,7 +485,7 @@ GET /metrics
 Exposes Prometheus metrics endpoint for monitoring the application's performance and behavior.
 
 The metrics endpoint provides standard Go metrics including:
-- Webhook events counts for IP blocks, signature errors, stored and fowarded counts
+- Webhook events counts for IP blocks, signature errors, stored and forwarded counts
 - HTTP request counts and errors
 - Go runtime metrics (memory usage, garbage collection, goroutines)
 
