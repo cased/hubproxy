@@ -20,12 +20,38 @@ import (
 )
 
 var (
-	webhookEvents = promauto.NewCounterVec(
+	webhookSignatureErrors = promauto.NewCounter(
 		prometheus.CounterOpts{
-			Name: "hubproxy_webhook_events_total",
-			Help: "Total number of webhook events received",
+			Name: "hubproxy_webhook_signature_errors_total",
+			Help: "Total number of webhook signature verification errors",
 		},
-		[]string{"event_type", "status"},
+	)
+
+	webhookStoredEvents = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_stored_events_total",
+			Help: "Total number of webhook events stored",
+		},
+	)
+
+	webhookForwardedRequests = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_forwarded_requests_total",
+			Help: "Total number of webhook events forwarded",
+		},
+	)
+	webhookForwardedErrors = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_forwarded_errors_total",
+			Help: "Total number of webhook forwarding errors",
+		},
+	)
+
+	webhookBlockedIPs = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_blocked_ips_total",
+			Help: "Total number of webhook requests blocked from non-GitHub IPs",
+		},
 	)
 )
 
@@ -164,9 +190,8 @@ func (h *Handler) Forward(payload []byte, headers http.Header) error {
 // ServeHTTP handles incoming webhook requests
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		h.logger.Error("invalid method", "method", r.Method)
-		webhookEvents.WithLabelValues("unknown", "error").Inc()
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.logger.Error("validation error", "error", fmt.Sprintf("invalid method: %s", r.Method))
+		http.Error(w, fmt.Sprintf("invalid method: %s", r.Method), http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -175,7 +200,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ip := strings.Split(r.RemoteAddr, ":")[0]
 		if !h.ipValidator.IsGitHubIP(ip) {
 			h.logger.Error("request from non-GitHub IP", "ip", ip)
-			webhookEvents.WithLabelValues("unknown", "error").Inc()
+			webhookBlockedIPs.Inc()
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
@@ -184,17 +209,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Read and verify payload
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
-		h.logger.Error("failed to read payload", "error", err)
-		webhookEvents.WithLabelValues("unknown", "error").Inc()
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		h.logger.Error("error reading body", "error", err)
+		http.Error(w, "Error reading request body", http.StatusInternalServerError)
 		return
 	}
 
-	// Verify signature
 	if err := h.VerifySignature(r.Header, payload); err != nil {
-		h.logger.Error("signature verification failed", "error", err)
-		webhookEvents.WithLabelValues("unknown", "error").Inc()
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		h.logger.Error("signature verification error", "error", err)
+		webhookSignatureErrors.Inc()
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
@@ -202,7 +225,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	eventType := r.Header.Get("X-GitHub-Event")
 	if eventType == "" {
 		h.logger.Error("missing event type")
-		webhookEvents.WithLabelValues("unknown", "error").Inc()
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
@@ -236,21 +258,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if err := h.store.StoreEvent(r.Context(), event); err != nil {
 			h.logger.Error("error storing event", "error", err)
-			// Continue even if storage fails
+		} else {
+			webhookStoredEvents.Inc()
 		}
 	}
 
-	// Forward to target
 	if h.targetURL != "" {
 		if err := h.Forward(payload, r.Header); err != nil {
-			h.logger.Error("failed to forward webhook", "error", err)
-			webhookEvents.WithLabelValues(eventType, "error").Inc()
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			h.logger.Error("forwarding error", "error", err)
+			webhookForwardedErrors.Inc()
+			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
+		} else {
+			webhookForwardedRequests.Inc()
 		}
 	}
 
-	// Record successful event
-	webhookEvents.WithLabelValues(eventType, "success").Inc()
 	w.WriteHeader(http.StatusOK)
 }
