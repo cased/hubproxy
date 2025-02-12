@@ -14,6 +14,45 @@ import (
 
 	"hubproxy/internal/security"
 	"hubproxy/internal/storage"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	webhookSignatureErrors = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_signature_errors_total",
+			Help: "Total number of webhook signature verification errors",
+		},
+	)
+
+	webhookStoredEvents = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_stored_events_total",
+			Help: "Total number of webhook events stored",
+		},
+	)
+
+	webhookForwardedRequests = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_forwarded_requests_total",
+			Help: "Total number of webhook events forwarded",
+		},
+	)
+	webhookForwardedErrors = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_forwarded_errors_total",
+			Help: "Total number of webhook forwarding errors",
+		},
+	)
+
+	webhookBlockedIPs = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_blocked_ips_total",
+			Help: "Total number of webhook requests blocked from non-GitHub IPs",
+		},
+	)
 )
 
 type Handler struct {
@@ -166,6 +205,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.ValidateGitHubEvent(r); err != nil {
 		h.logger.Error("validation error", "error", err)
+		webhookBlockedIPs.Inc()
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -180,6 +220,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.VerifySignature(r.Header, payload); err != nil {
 		h.logger.Error("signature verification error", "error", err)
+		webhookSignatureErrors.Inc()
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
@@ -214,14 +255,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err := h.store.StoreEvent(r.Context(), event); err != nil {
 			h.logger.Error("error storing event", "error", err)
 			// Continue even if storage fails
+		} else {
+			webhookStoredEvents.Inc()
 		}
 	}
 
 	if h.targetURL != "" {
 		if err := h.Forward(payload, r.Header); err != nil {
 			h.logger.Error("forwarding error", "error", err)
+			webhookForwardedErrors.Inc()
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
+		} else {
+			webhookForwardedRequests.Inc()
 		}
 	}
 
