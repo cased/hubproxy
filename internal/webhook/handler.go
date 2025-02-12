@@ -1,6 +1,7 @@
 package webhook
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -8,12 +9,52 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"hubproxy/internal/security"
 	"hubproxy/internal/storage"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	webhookSignatureErrors = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_signature_errors_total",
+			Help: "Total number of webhook signature verification errors",
+		},
+	)
+
+	webhookStoredEvents = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_stored_events_total",
+			Help: "Total number of webhook events stored",
+		},
+	)
+
+	webhookForwardedRequests = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_forwarded_requests_total",
+			Help: "Total number of webhook events forwarded",
+		},
+	)
+	webhookForwardedErrors = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_forwarded_errors_total",
+			Help: "Total number of webhook forwarding errors",
+		},
+	)
+
+	webhookBlockedIPs = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hubproxy_webhook_blocked_ips_total",
+			Help: "Total number of webhook requests blocked from non-GitHub IPs",
+		},
+	)
 )
 
 type Handler struct {
@@ -39,10 +80,20 @@ func NewHandler(opts Options) *Handler {
 		ipValidator = security.NewIPValidator(1*time.Hour, false) // Update IP ranges every hour
 	}
 
+	transport := &http.Transport{}
+
+	// Swap out HTTP client transport to use Unix socket
+	if strings.HasPrefix(opts.TargetURL, "unix://") {
+		socketPath := strings.TrimPrefix(opts.TargetURL, "unix://")
+		transport.DialContext = func(ctx context.Context, _, addr string) (net.Conn, error) {
+			return net.Dial("unix", socketPath)
+		}
+	}
+
 	return &Handler{
 		secret:      opts.Secret,
 		targetURL:   opts.TargetURL,
-		httpClient:  &http.Client{},
+		httpClient:  &http.Client{Transport: transport},
 		logger:      opts.Logger,
 		ipValidator: ipValidator,
 		store:       opts.Store,
@@ -124,7 +175,23 @@ func (h *Handler) TargetURL() string {
 }
 
 func (h *Handler) Forward(payload []byte, headers http.Header) error {
-	req, err := http.NewRequest(http.MethodPost, h.targetURL, strings.NewReader(string(payload)))
+	if h.targetURL == "" {
+		// In log-only mode, just log the event
+		h.logger.Info("webhook received in log-only mode",
+			"event", headers.Get("X-GitHub-Event"),
+			"delivery", headers.Get("X-GitHub-Delivery"))
+		return nil
+	}
+
+	var targetURL string
+	// http.NewRequest still needs a valid http URI, make a fake one for unix socket path
+	if strings.HasPrefix(h.targetURL, "unix://") {
+		targetURL = "http://127.0.0.1/webhook"
+	} else {
+		targetURL = h.targetURL
+	}
+
+	req, err := http.NewRequest(http.MethodPost, targetURL, strings.NewReader(string(payload)))
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
@@ -158,6 +225,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.ValidateGitHubEvent(r); err != nil {
 		h.logger.Error("validation error", "error", err)
+		webhookBlockedIPs.Inc()
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -172,6 +240,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.VerifySignature(r.Header, payload); err != nil {
 		h.logger.Error("signature verification error", "error", err)
+		webhookSignatureErrors.Inc()
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
@@ -206,14 +275,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err := h.store.StoreEvent(r.Context(), event); err != nil {
 			h.logger.Error("error storing event", "error", err)
 			// Continue even if storage fails
+		} else {
+			webhookStoredEvents.Inc()
 		}
 	}
 
 	if h.targetURL != "" {
 		if err := h.Forward(payload, r.Header); err != nil {
 			h.logger.Error("forwarding error", "error", err)
+			webhookForwardedErrors.Inc()
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
+		} else {
+			webhookForwardedRequests.Inc()
 		}
 	}
 
