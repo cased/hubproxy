@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -12,6 +13,7 @@ import (
 )
 
 var port string
+var socketPath string
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -19,17 +21,23 @@ func newRootCmd() *cobra.Command {
 		Short: "Test server for HubProxy",
 		Long:  "A simple HTTP server that logs incoming requests for testing HubProxy",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return run()
+			if socketPath != "" {
+				return runUnixSocket(socketPath)
+			} else if port != "" {
+				return runPort(port)
+			}
+			return fmt.Errorf("no port or socket specified")
 		},
 	}
 
 	flags := cmd.Flags()
-	flags.StringVarP(&port, "port", "p", "8082", "Port to listen on")
+	flags.StringVarP(&port, "port", "p", "", "Port to listen on")
+	flags.StringVarP(&socketPath, "unix-socket", "s", "", "Unix socket to listen on")
 
 	return cmd
 }
 
-func run() error {
+func installHTTPHandler() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
 		log.Printf("Headers: %v", r.Header)
@@ -45,6 +53,10 @@ func run() error {
 		log.Printf("Body: %s", string(body))
 		w.WriteHeader(http.StatusOK)
 	})
+}
+
+func runPort(port string) error {
+	installHTTPHandler()
 
 	srv := &http.Server{
 		Addr:         ":" + port,
@@ -56,6 +68,34 @@ func run() error {
 
 	log.Printf("Test server listening on :%s", port)
 	return srv.ListenAndServe()
+}
+
+func runUnixSocket(socketPath string) error {
+	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	installHTTPHandler()
+
+	srv := &http.Server{
+		Handler:      http.DefaultServeMux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
+
+	if err := os.Chmod(socketPath, 0666); err != nil {
+		return err
+	}
+
+	log.Printf("Test server listening on unix socket: %s", socketPath)
+	return srv.Serve(listener)
 }
 
 func main() {

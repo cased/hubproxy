@@ -1,6 +1,7 @@
 package webhook
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -78,10 +80,20 @@ func NewHandler(opts Options) *Handler {
 		ipValidator = security.NewIPValidator(1*time.Hour, false) // Update IP ranges every hour
 	}
 
+	transport := &http.Transport{}
+
+	// Swap out HTTP client transport to use Unix socket
+	if strings.HasPrefix(opts.TargetURL, "unix://") {
+		socketPath := strings.TrimPrefix(opts.TargetURL, "unix://")
+		transport.DialContext = func(ctx context.Context, _, addr string) (net.Conn, error) {
+			return net.Dial("unix", socketPath)
+		}
+	}
+
 	return &Handler{
 		secret:      opts.Secret,
 		targetURL:   opts.TargetURL,
-		httpClient:  &http.Client{},
+		httpClient:  &http.Client{Transport: transport},
 		logger:      opts.Logger,
 		ipValidator: ipValidator,
 		store:       opts.Store,
@@ -171,7 +183,15 @@ func (h *Handler) Forward(payload []byte, headers http.Header) error {
 		return nil
 	}
 
-	req, err := http.NewRequest(http.MethodPost, h.targetURL, strings.NewReader(string(payload)))
+	var targetURL string
+	// http.NewRequest still needs a valid http URI, make a fake one for unix socket path
+	if strings.HasPrefix(h.targetURL, "unix://") {
+		targetURL = "http://127.0.0.1/webhook"
+	} else {
+		targetURL = h.targetURL
+	}
+
+	req, err := http.NewRequest(http.MethodPost, targetURL, strings.NewReader(string(payload)))
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
