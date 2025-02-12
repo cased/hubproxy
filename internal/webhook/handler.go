@@ -246,6 +246,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if err := h.store.StoreEvent(r.Context(), event); err != nil {
 			h.logger.Error("error storing event", "error", err)
+			// Continue even if storage fails
 		} else {
 			webhookStoredEvents.Inc()
 		}
