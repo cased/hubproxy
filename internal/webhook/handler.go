@@ -195,37 +195,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate GitHub IP if enabled
-	if h.ipValidator != nil {
-		ip := strings.Split(r.RemoteAddr, ":")[0]
-		if !h.ipValidator.IsGitHubIP(ip) {
-			h.logger.Error("request from non-GitHub IP", "ip", ip)
-			webhookBlockedIPs.Inc()
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
+	if err := h.ValidateGitHubEvent(r); err != nil {
+		h.logger.Error("validation error", "error", err)
+		webhookBlockedIPs.Inc()
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
-	// Read and verify payload
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		h.logger.Error("error reading body", "error", err)
 		http.Error(w, "Error reading request body", http.StatusInternalServerError)
 		return
 	}
+	defer r.Body.Close()
 
 	if err := h.VerifySignature(r.Header, payload); err != nil {
 		h.logger.Error("signature verification error", "error", err)
 		webhookSignatureErrors.Inc()
 		http.Error(w, err.Error(), http.StatusUnauthorized)
-		return
-	}
-
-	// Parse event type
-	eventType := r.Header.Get("X-GitHub-Event")
-	if eventType == "" {
-		h.logger.Error("missing event type")
-		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
