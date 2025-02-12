@@ -1,15 +1,18 @@
 package integration
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"log/slog"
 
@@ -124,4 +127,110 @@ func TestWebhookIntegration(t *testing.T) {
 
 		assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
 	})
+}
+
+func TestWebhookUnixSocket(t *testing.T) {
+	// Test configuration
+	secret := "test-secret"
+	payload := []byte(`{"action": "test", "repository": {"full_name": "test/repo"}}`)
+	socketPath := "/tmp/hubproxy-test.sock"
+
+	// Initialize test database
+	store := SetupTestDB(t)
+	defer store.Close()
+
+	// Clean up socket file if it exists
+	os.Remove(socketPath)
+
+	// Create Unix socket listener
+	listener, err := net.Listen("unix", socketPath)
+	require.NoError(t, err)
+	defer listener.Close()
+	defer os.Remove(socketPath)
+
+	// Channel to receive forwarded request data
+	receivedCh := make(chan []byte, 1)
+
+	// Start Unix socket server
+	go func() {
+		conn, errAccept := listener.Accept()
+		if errAccept != nil {
+			t.Logf("Error accepting connection: %v", errAccept)
+			return
+		}
+		defer conn.Close()
+
+		// Read HTTP request
+		bufReader := bufio.NewReader(conn)
+		req, errRead := http.ReadRequest(bufReader)
+		if errRead != nil {
+			t.Logf("Error reading request: %v", errRead)
+			return
+		}
+
+		// Verify headers
+		assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
+		assert.Equal(t, "push", req.Header.Get("X-GitHub-Event"))
+
+		// Read body
+		body, errBody := io.ReadAll(req.Body)
+		if errBody != nil {
+			t.Logf("Error reading body: %v", errBody)
+			return
+		}
+
+		// Send response
+		resp := http.Response{
+			StatusCode: http.StatusOK,
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			Header:     make(http.Header),
+		}
+		resp.Write(conn)
+
+		// Send received data to channel
+		receivedCh <- body
+	}()
+
+	// Create webhook handler with Unix socket target
+	handler := webhook.NewHandler(webhook.Options{
+		Secret:    secret,
+		TargetURL: "unix://" + socketPath,
+		Logger:    slog.New(slog.NewJSONHandler(os.Stdout, nil)),
+		Store:     store,
+	})
+
+	// Create test server with webhook handler
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	// Calculate signature
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(payload)
+	signature := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+
+	// Create request
+	req, err := http.NewRequest("POST", server.URL, bytes.NewReader(payload))
+	require.NoError(t, err)
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-GitHub-Event", "push")
+	req.Header.Set("X-GitHub-Delivery", "test-delivery-id")
+	req.Header.Set("X-Hub-Signature-256", signature)
+
+	// Send request
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Wait for forwarded request
+	select {
+	case receivedData := <-receivedCh:
+		assert.Equal(t, payload, receivedData)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timeout waiting for forwarded request")
+	}
 }
