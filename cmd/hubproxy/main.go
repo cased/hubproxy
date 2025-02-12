@@ -15,6 +15,7 @@ import (
 	"hubproxy/internal/webhook"
 	"log/slog"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"tailscale.com/tsnet"
@@ -44,15 +45,6 @@ and your target services.`,
 				if err := viper.ReadInConfig(); err != nil {
 					return fmt.Errorf("failed to load config file: %w", err)
 				}
-			}
-
-			// Always validate target URL
-			targetURL := viper.GetString("target-url")
-			if targetURL == "" {
-				return fmt.Errorf("target URL is required")
-			}
-			if _, err := url.Parse(targetURL); err != nil {
-				return fmt.Errorf("invalid target URL: %w", err)
 			}
 
 			// Skip server startup in test mode
@@ -106,15 +98,18 @@ func run() error {
 	}
 	logger.Info("using webhook secret from environment", "secret", secret)
 
-	// Validate flags
-	if viper.GetString("target-url") == "" {
-		return fmt.Errorf("target URL is required")
-	}
-
-	// Parse target URL
-	targetURL, err := url.Parse(viper.GetString("target-url"))
-	if err != nil {
-		return fmt.Errorf("invalid target URL: %w", err)
+	// Get target URL if provided
+	targetURL := viper.GetString("target-url")
+	if targetURL != "" {
+		// Parse target URL
+		parsedURL, err := url.Parse(targetURL)
+		if err != nil {
+			return fmt.Errorf("invalid target URL: %w", err)
+		}
+		targetURL = parsedURL.String()
+		logger.Info("forwarding webhooks to target URL", "url", targetURL)
+	} else {
+		logger.Info("running in log-only mode (no target URL specified)")
 	}
 
 	// Initialize storage if DB URI is provided
@@ -136,7 +131,7 @@ func run() error {
 	// Create webhook handler
 	webhookHandler := webhook.NewHandler(webhook.Options{
 		Secret:     viper.GetString("webhook-secret"),
-		TargetURL:  targetURL.String(),
+		TargetURL:  targetURL,
 		Logger:     logger,
 		Store:      store,
 		ValidateIP: viper.GetBool("validate-ip"),
@@ -152,6 +147,7 @@ func run() error {
 	mux.Handle("/api/stats", http.HandlerFunc(apiHandler.GetStats))
 	mux.Handle("/api/events/", http.HandlerFunc(apiHandler.ReplayEvent)) // Handle replay endpoint
 	mux.Handle("/api/replay", http.HandlerFunc(apiHandler.ReplayRange))  // Handle range replay
+	mux.Handle("/metrics", promhttp.Handler())                           // Add Prometheus metrics endpoint
 
 	// Start server
 	var srv *http.Server

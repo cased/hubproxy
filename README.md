@@ -476,6 +476,19 @@ Replays all webhook events within a specified time range.
 - The webhook payload is preserved exactly as it was in the original event
 - Range replay has a default limit of 100 events (can be overridden with `limit` parameter)
 
+### Prometheus Metrics
+
+```
+GET /metrics
+```
+
+Exposes Prometheus metrics endpoint for monitoring the application's performance and behavior.
+
+The metrics endpoint provides standard Go metrics including:
+- Webhook events counts for IP blocks, signature errors, stored and forwarded counts
+- HTTP request counts and errors
+- Go runtime metrics (memory usage, garbage collection, goroutines)
+
 ## Configuration
 
 HubProxy can be configured using either command-line flags or a YAML configuration file, with sensitive values like secrets being managed through environment variables. When both configuration methods are used, command-line flags take precedence over the configuration file.
@@ -522,7 +535,7 @@ hubproxy --config config.yaml
 Most configuration options can also be set via command-line flags:
 
 - `--config`: Path to config file (optional)
-- `--target`: Target URL to forward webhooks to
+- `--target-url`: Target URL to forward webhooks to
 - `--log-level`: Log level (debug, info, warn, error)
 - `--validate-ip`: Validate that requests come from GitHub IPs
 - `--ts-authkey`: Tailscale auth key for tsnet
