@@ -43,6 +43,9 @@ and your target services.`,
 				viper.SetDefault("ts-authkey", os.Getenv("TS_AUTHKEY"))
 			}
 
+			// Handle any file: prefixed values
+			viperReadFile("ts-authkey")
+
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return fmt.Errorf("failed to bind flags: %w", err)
 			}
@@ -80,7 +83,7 @@ and your target services.`,
 	return cmd
 }
 
-func getFileString(key string) string {
+func viperReadFile(key string) {
 	const filePrefix = "file:"
 	value := viper.GetString(key)
 	if strings.HasPrefix(value, filePrefix) {
@@ -92,11 +95,10 @@ func getFileString(key string) string {
 				"path", path,
 				"error", err,
 			)
-			return value
+			return
 		}
-		return strings.TrimSpace(string(content))
+		viper.Set(key, strings.TrimSpace(string(content)))
 	}
-	return value
 }
 
 func run() error {
@@ -178,7 +180,7 @@ func run() error {
 
 	// Start server
 	var srv *http.Server
-	if authKey := getFileString("ts-authkey"); authKey != "" {
+	if authKey := viper.GetString("ts-authkey"); authKey != "" {
 		// Run as Tailscale service
 		hostname := viper.GetString("ts-hostname")
 
