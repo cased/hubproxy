@@ -72,6 +72,14 @@ and your target services.`,
 	return cmd
 }
 
+func getConfigWithFallback(key, defaultValue, unprefixedEnvKey string) string {
+	value := viper.GetString(key)
+	if (value == "" || value == defaultValue) && os.Getenv(unprefixedEnvKey) != "" {
+		return os.Getenv(unprefixedEnvKey)
+	}
+	return value
+}
+
 func run() error {
 	// Setup logger
 	var level slog.Level
@@ -151,11 +159,13 @@ func run() error {
 
 	// Start server
 	var srv *http.Server
-	if viper.GetString("ts-authkey") != "" {
+	if authKey := getConfigWithFallback("ts-authkey", "", "TAILSCALE_AUTHKEY"); authKey != "" {
 		// Run as Tailscale service
+		hostname := getConfigWithFallback("ts-hostname", "hubproxy", "TS_HOSTNAME")
+
 		s := &tsnet.Server{
-			Hostname: viper.GetString("ts-hostname"),
-			AuthKey:  viper.GetString("ts-authkey"),
+			Hostname: hostname,
+			AuthKey:  authKey,
 		}
 		defer s.Close()
 
@@ -176,7 +186,7 @@ func run() error {
 		}
 
 		// Get our hostname from Tailscale
-		hostname := status.Self.DNSName
+		hostname = status.Self.DNSName
 		logger.Info("Started Tailscale server",
 			"url", fmt.Sprintf("https://%s", hostname),
 			"tailnet", strings.Split(hostname, ".")[1],
