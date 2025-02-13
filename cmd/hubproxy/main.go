@@ -35,6 +35,14 @@ and your target services.`,
 			viper.SetEnvPrefix("hubproxy")
 			viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
+			// Support unprefixed Tailscale env var conventions
+			if os.Getenv("TS_HOSTNAME") != "" {
+				viper.SetDefault("ts-hostname", os.Getenv("TS_HOSTNAME"))
+			}
+			if os.Getenv("TS_AUTHKEY") != "" {
+				viper.SetDefault("ts-authkey", os.Getenv("TS_AUTHKEY"))
+			}
+
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return fmt.Errorf("failed to bind flags: %w", err)
 			}
@@ -72,10 +80,21 @@ and your target services.`,
 	return cmd
 }
 
-func getConfigWithFallback(key, defaultValue, unprefixedEnvKey string) string {
+func getFileString(key string) string {
+	const filePrefix = "file:"
 	value := viper.GetString(key)
-	if (value == "" || value == defaultValue) && os.Getenv(unprefixedEnvKey) != "" {
-		return os.Getenv(unprefixedEnvKey)
+	if strings.HasPrefix(value, filePrefix) {
+		path := strings.TrimPrefix(value, filePrefix)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			slog.Warn("failed to read file, using value as literal string",
+				"key", key,
+				"path", path,
+				"error", err,
+			)
+			return value
+		}
+		return strings.TrimSpace(string(content))
 	}
 	return value
 }
@@ -159,20 +178,15 @@ func run() error {
 
 	// Start server
 	var srv *http.Server
-	if authKey := getConfigWithFallback("ts-authkey", "", "TAILSCALE_AUTHKEY"); authKey != "" {
+	if authKey := getFileString("ts-authkey"); authKey != "" {
 		// Run as Tailscale service
-		hostname := getConfigWithFallback("ts-hostname", "hubproxy", "TS_HOSTNAME")
+		hostname := viper.GetString("ts-hostname")
 
 		s := &tsnet.Server{
 			Hostname: hostname,
 			AuthKey:  authKey,
 		}
 		defer s.Close()
-
-		ln, err := s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
-		if err != nil {
-			return fmt.Errorf("failed to listen: %w", err)
-		}
 
 		// Get our Tailscale IP
 		client, err := s.LocalClient()
@@ -198,6 +212,12 @@ func run() error {
 			WriteTimeout: 10 * time.Second,
 			IdleTimeout:  60 * time.Second,
 		}
+
+		ln, err := s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
+		if err != nil {
+			return fmt.Errorf("failed to listen: %w", err)
+		}
+
 		return srv.Serve(ln)
 	} else {
 		// Run as regular HTTP server
