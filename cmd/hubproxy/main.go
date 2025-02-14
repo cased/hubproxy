@@ -203,7 +203,7 @@ func run() error {
 			return fmt.Errorf("failed to get status: %w", err)
 		}
 
-		logger.Info("Started Tailscale server", "dnsname", status.Self.DNSName)
+		logger.Info("Started Tailscale server", "DNSName", status.Self.DNSName, "MagicDNSSuffix", status.CurrentTailnet.MagicDNSSuffix)
 
 		srv = &http.Server{
 			Handler:      mux,
