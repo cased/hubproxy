@@ -35,6 +35,17 @@ and your target services.`,
 			viper.SetEnvPrefix("hubproxy")
 			viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
+			// Support unprefixed Tailscale env var conventions
+			if os.Getenv("TS_HOSTNAME") != "" {
+				viper.SetDefault("ts-hostname", os.Getenv("TS_HOSTNAME"))
+			}
+			if os.Getenv("TS_AUTHKEY") != "" {
+				viper.SetDefault("ts-authkey", os.Getenv("TS_AUTHKEY"))
+			}
+
+			// Handle any file: prefixed values
+			viperReadFile("ts-authkey")
+
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return fmt.Errorf("failed to bind flags: %w", err)
 			}
@@ -70,6 +81,24 @@ and your target services.`,
 	flags.Bool("test-mode", false, "Skip server startup for testing")
 
 	return cmd
+}
+
+func viperReadFile(key string) {
+	const filePrefix = "file:"
+	value := viper.GetString(key)
+	if strings.HasPrefix(value, filePrefix) {
+		path := strings.TrimPrefix(value, filePrefix)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			slog.Warn("failed to read file, using value as literal string",
+				"key", key,
+				"path", path,
+				"error", err,
+			)
+			return
+		}
+		viper.Set(key, strings.TrimSpace(string(content)))
+	}
 }
 
 func run() error {
@@ -151,18 +180,15 @@ func run() error {
 
 	// Start server
 	var srv *http.Server
-	if viper.GetString("ts-authkey") != "" {
+	if authKey := viper.GetString("ts-authkey"); authKey != "" {
 		// Run as Tailscale service
+		hostname := viper.GetString("ts-hostname")
+
 		s := &tsnet.Server{
-			Hostname: viper.GetString("ts-hostname"),
-			AuthKey:  viper.GetString("ts-authkey"),
+			Hostname: hostname,
+			AuthKey:  authKey,
 		}
 		defer s.Close()
-
-		ln, err := s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
-		if err != nil {
-			return fmt.Errorf("failed to listen: %w", err)
-		}
 
 		// Get our Tailscale IP
 		client, err := s.LocalClient()
@@ -176,7 +202,7 @@ func run() error {
 		}
 
 		// Get our hostname from Tailscale
-		hostname := status.Self.DNSName
+		hostname = status.Self.DNSName
 		logger.Info("Started Tailscale server",
 			"url", fmt.Sprintf("https://%s", hostname),
 			"tailnet", strings.Split(hostname, ".")[1],
@@ -188,6 +214,12 @@ func run() error {
 			WriteTimeout: 10 * time.Second,
 			IdleTimeout:  60 * time.Second,
 		}
+
+		ln, err := s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
+		if err != nil {
+			return fmt.Errorf("failed to listen: %w", err)
+		}
+
 		return srv.Serve(ln)
 	} else {
 		// Run as regular HTTP server
