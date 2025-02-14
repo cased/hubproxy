@@ -192,6 +192,17 @@ func run() error {
 		}
 		defer s.Close()
 
+		publicLn, err := s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
+		if err != nil {
+			return fmt.Errorf("failed to listen: %w", err)
+		}
+
+		// TODO: Serve internal API routes on this listener
+		// privateLn, err := s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
+		// if err != nil {
+		// 	return fmt.Errorf("failed to listen: %w", err)
+		// }
+
 		// Get our Tailscale IP
 		client, err := s.LocalClient()
 		if err != nil {
@@ -212,12 +223,7 @@ func run() error {
 			IdleTimeout:  60 * time.Second,
 		}
 
-		ln, err := s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
-		if err != nil {
-			return fmt.Errorf("failed to listen: %w", err)
-		}
-
-		return srv.Serve(ln)
+		return srv.Serve(publicLn)
 	} else {
 		// Run as regular HTTP server
 		srv = &http.Server{
