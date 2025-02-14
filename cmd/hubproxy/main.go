@@ -102,6 +102,8 @@ func viperReadFile(key string) {
 }
 
 func run() error {
+	ctx := context.Background()
+
 	// Setup logger
 	var level slog.Level
 	switch viper.GetString("log-level") {
@@ -152,7 +154,7 @@ func run() error {
 		}
 		defer store.Close()
 
-		if err := store.CreateSchema(context.Background()); err != nil {
+		if err := store.CreateSchema(ctx); err != nil {
 			return fmt.Errorf("failed to create schema: %w", err)
 		}
 	}
@@ -196,7 +198,7 @@ func run() error {
 			return fmt.Errorf("failed to get local client: %w", err)
 		}
 
-		status, err := client.Status(context.Background())
+		status, err := client.Status(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get status: %w", err)
 		}
