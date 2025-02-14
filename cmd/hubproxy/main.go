@@ -201,12 +201,7 @@ func run() error {
 			return fmt.Errorf("failed to get status: %w", err)
 		}
 
-		// Get our hostname from Tailscale
-		hostname = status.Self.DNSName
-		logger.Info("Started Tailscale server",
-			"url", fmt.Sprintf("https://%s", hostname),
-			"tailnet", strings.Split(hostname, ".")[1],
-		)
+		logger.Info("Started Tailscale server", "dnsname", status.Self.DNSName)
 
 		srv = &http.Server{
 			Handler:      mux,
