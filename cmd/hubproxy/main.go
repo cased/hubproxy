@@ -120,6 +120,23 @@ func logMiddleware(listenerType string, next http.Handler) http.Handler {
 	})
 }
 
+func wrapMuxWithNotFound(listenerType string, mux *http.ServeMux) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h, pattern := mux.Handler(r)
+		if pattern == "" {
+			slog.Info("handled request",
+				"listener", listenerType,
+				"method", r.Method,
+				"path", r.URL.Path,
+				"remote_addr", r.RemoteAddr,
+			)
+			http.NotFound(w, r)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
 func run() error {
 	ctx := context.Background()
 
@@ -192,7 +209,7 @@ func run() error {
 	webhookMux := http.NewServeMux()
 	webhookMux.Handle("/webhook", logMiddleware("webhook", webhookHandler))
 	webhookSrv := &http.Server{
-		Handler:      webhookMux,
+		Handler:      wrapMuxWithNotFound("webhook", webhookMux),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -208,7 +225,7 @@ func run() error {
 	apiMux.Handle("/api/replay", logMiddleware("api", http.HandlerFunc(apiHandler.ReplayRange)))  // Handle range replay
 	apiMux.Handle("/metrics", logMiddleware("api", promhttp.Handler()))                           // Add Prometheus metrics endpoint
 	apiSrv := &http.Server{
-		Handler:      apiMux,
+		Handler:      wrapMuxWithNotFound("api", apiMux),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
