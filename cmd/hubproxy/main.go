@@ -45,6 +45,7 @@ and your target services.`,
 
 			// Handle any file: prefixed values
 			viperReadFile("ts-authkey")
+			viperReadFile("webhook-secret")
 
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return fmt.Errorf("failed to bind flags: %w", err)
@@ -72,6 +73,7 @@ and your target services.`,
 
 	// Add other flags
 	flags := cmd.Flags()
+	flags.String("webhook-secret", "", "GitHub webhook secret (required)")
 	flags.String("target-url", "", "Target URL to forward webhooks to")
 	flags.String("log-level", "info", "Log level (debug, info, warn, error)")
 	flags.Bool("validate-ip", true, "Validate that requests come from GitHub IPs")
