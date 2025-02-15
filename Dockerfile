@@ -8,5 +8,5 @@ RUN go mod download
 COPY . .
 RUN go build -o /hubproxy ./cmd/hubproxy
 
-EXPOSE 8080
+EXPOSE 8080 8081
 CMD ["/hubproxy"]
