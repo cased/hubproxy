@@ -228,9 +228,12 @@ func run() error {
 			return fmt.Errorf("failed to listen: %w", err)
 		}
 
-		logger.Info("Started Tailscale server",
-			"addr", fmt.Sprintf("https://%s", s.CertDomains()[0]),
-		)
+		domains := s.CertDomains()
+		addr := "https://[unknown]"
+		if len(domains) > 0 {
+			addr = fmt.Sprintf("https://%s", domains[0])
+		}
+		logger.Info("Started Tailscale server", "addr", addr)
 	} else {
 		var err error
 
