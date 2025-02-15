@@ -219,7 +219,7 @@ func run() error {
 			return fmt.Errorf("failed to listen: %w", err)
 		}
 
-		apiLn, err = s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
+		apiLn, err = s.ListenTLS("tcp", ":443")
 		if err != nil {
 			return fmt.Errorf("failed to listen: %w", err)
 		}
