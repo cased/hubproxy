@@ -504,6 +504,9 @@ Sensitive configuration values should be provided through environment variables:
 Create a `config.yaml` file (see `config.example.yaml` for a template) with your desired settings.
 
 ```yaml
+# Read webhook secret from file
+webhook-secret: file:/run/credentials/hubproxy-webhook-secret
+
 # Target URL to forward webhooks to
 target-url: "http://your-service:8080/webhook"
 
