@@ -233,12 +233,12 @@ func run() error {
 		}
 		defer s.Close()
 
-		webhookLn, err = s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
+		apiLn, err = s.ListenTLS("tcp", ":443")
 		if err != nil {
 			return fmt.Errorf("failed to listen: %w", err)
 		}
 
-		apiLn, err = s.ListenTLS("tcp", ":443")
+		webhookLn, err = s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
 		if err != nil {
 			return fmt.Errorf("failed to listen: %w", err)
 		}
