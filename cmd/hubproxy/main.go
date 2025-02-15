@@ -204,6 +204,7 @@ func run() error {
 		// }
 
 		srv = &http.Server{
+			Addr:         ":443",
 			Handler:      mux,
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
