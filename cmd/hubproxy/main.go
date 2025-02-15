@@ -212,6 +212,9 @@ func run() error {
 		s := &tsnet.Server{
 			Hostname: hostname,
 			AuthKey:  authKey,
+			Logf: func(format string, args ...any) {
+				logger.Debug(fmt.Sprintf(format, args...))
+			},
 		}
 		defer s.Close()
 
