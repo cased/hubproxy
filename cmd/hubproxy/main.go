@@ -108,6 +108,18 @@ func viperReadFile(key string) {
 	}
 }
 
+func logMiddleware(listenerType string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		slog.Info("handled request",
+			"listener", listenerType,
+			"method", r.Method,
+			"path", r.URL.Path,
+			"remote_addr", r.RemoteAddr,
+		)
+		next.ServeHTTP(w, r)
+	})
+}
+
 func run() error {
 	ctx := context.Background()
 
@@ -178,7 +190,7 @@ func run() error {
 	// Create webhook server
 	var webhookLn net.Listener
 	webhookMux := http.NewServeMux()
-	webhookMux.Handle("/webhook", webhookHandler)
+	webhookMux.Handle("/webhook", logMiddleware("webhook", webhookHandler))
 	webhookSrv := &http.Server{
 		Handler:      webhookMux,
 		ReadTimeout:  10 * time.Second,
@@ -190,11 +202,11 @@ func run() error {
 	var apiLn net.Listener
 	apiHandler := api.NewHandler(store, logger)
 	apiMux := http.NewServeMux()
-	apiMux.Handle("/api/events", http.HandlerFunc(apiHandler.ListEvents))
-	apiMux.Handle("/api/stats", http.HandlerFunc(apiHandler.GetStats))
-	apiMux.Handle("/api/events/", http.HandlerFunc(apiHandler.ReplayEvent)) // Handle replay endpoint
-	apiMux.Handle("/api/replay", http.HandlerFunc(apiHandler.ReplayRange))  // Handle range replay
-	apiMux.Handle("/metrics", promhttp.Handler())                           // Add Prometheus metrics endpoint
+	apiMux.Handle("/api/events", logMiddleware("api", http.HandlerFunc(apiHandler.ListEvents)))
+	apiMux.Handle("/api/stats", logMiddleware("api", http.HandlerFunc(apiHandler.GetStats)))
+	apiMux.Handle("/api/events/", logMiddleware("api", http.HandlerFunc(apiHandler.ReplayEvent))) // Handle replay endpoint
+	apiMux.Handle("/api/replay", logMiddleware("api", http.HandlerFunc(apiHandler.ReplayRange)))  // Handle range replay
+	apiMux.Handle("/metrics", logMiddleware("api", promhttp.Handler()))                           // Add Prometheus metrics endpoint
 	apiSrv := &http.Server{
 		Handler:      apiMux,
 		ReadTimeout:  10 * time.Second,
