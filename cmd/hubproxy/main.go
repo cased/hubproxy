@@ -203,23 +203,6 @@ func run() error {
 		// 	return fmt.Errorf("failed to listen: %w", err)
 		// }
 
-		// Get our Tailscale IP
-		client, err := s.LocalClient()
-		if err != nil {
-			return fmt.Errorf("failed to get local client: %w", err)
-		}
-
-		status, err := client.Status(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to get status: %w", err)
-		}
-
-		logger.Info("Started Tailscale server",
-			"DNSName", status.Self.DNSName,
-			"MagicDNSSuffix", status.CurrentTailnet.MagicDNSSuffix,
-			"CertDomain", s.CertDomains()[0],
-		)
-
 		srv = &http.Server{
 			Handler:      mux,
 			ReadTimeout:  10 * time.Second,
@@ -227,6 +210,9 @@ func run() error {
 			IdleTimeout:  60 * time.Second,
 		}
 
+		logger.Info("Started Tailscale server",
+			"addr", fmt.Sprintf("https://%s", s.CertDomains()[0]),
+		)
 		return srv.Serve(publicLn)
 	} else {
 		// Run as regular HTTP server
