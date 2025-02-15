@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/sync/errgroup"
 	"tailscale.com/tsnet"
 )
 
@@ -73,6 +75,8 @@ and your target services.`,
 
 	// Add other flags
 	flags := cmd.Flags()
+	flags.String("webhook-addr", ":8080", "Public address to listen for webhooks on")
+	flags.String("api-addr", ":8081", "Private address for API requests")
 	flags.String("webhook-secret", "", "GitHub webhook secret (required)")
 	flags.String("target-url", "", "Target URL to forward webhooks to")
 	flags.String("log-level", "info", "Log level (debug, info, warn, error)")
@@ -170,21 +174,37 @@ func run() error {
 		ValidateIP: viper.GetBool("validate-ip"),
 	})
 
-	// Create API handler
-	apiHandler := api.NewHandler(store, logger)
+	// Create webhook server
+	var webhookLn net.Listener
+	webhookMux := http.NewServeMux()
+	webhookMux.Handle("/webhook", webhookHandler)
+	webhookSrv := &http.Server{
+		Handler:      webhookMux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
 
-	// Create router and register handlers
-	mux := http.NewServeMux()
-	mux.Handle("/webhook", webhookHandler)
-	mux.Handle("/api/events", http.HandlerFunc(apiHandler.ListEvents))
-	mux.Handle("/api/stats", http.HandlerFunc(apiHandler.GetStats))
-	mux.Handle("/api/events/", http.HandlerFunc(apiHandler.ReplayEvent)) // Handle replay endpoint
-	mux.Handle("/api/replay", http.HandlerFunc(apiHandler.ReplayRange))  // Handle range replay
-	mux.Handle("/metrics", promhttp.Handler())                           // Add Prometheus metrics endpoint
+	// Create API server
+	var apiLn net.Listener
+	apiHandler := api.NewHandler(store, logger)
+	apiMux := http.NewServeMux()
+	apiMux.Handle("/api/events", http.HandlerFunc(apiHandler.ListEvents))
+	apiMux.Handle("/api/stats", http.HandlerFunc(apiHandler.GetStats))
+	apiMux.Handle("/api/events/", http.HandlerFunc(apiHandler.ReplayEvent)) // Handle replay endpoint
+	apiMux.Handle("/api/replay", http.HandlerFunc(apiHandler.ReplayRange))  // Handle range replay
+	apiMux.Handle("/metrics", promhttp.Handler())                           // Add Prometheus metrics endpoint
+	apiSrv := &http.Server{
+		Handler:      apiMux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
 
 	// Start server
-	var srv *http.Server
 	if authKey := viper.GetString("ts-authkey"); authKey != "" {
+		var err error
+
 		// Run as Tailscale service
 		hostname := viper.GetString("ts-hostname")
 
@@ -194,41 +214,40 @@ func run() error {
 		}
 		defer s.Close()
 
-		publicLn, err := s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
+		webhookLn, err = s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
 		if err != nil {
 			return fmt.Errorf("failed to listen: %w", err)
 		}
 
-		// TODO: Serve internal API routes on this listener
-		// privateLn, err := s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
-		// if err != nil {
-		// 	return fmt.Errorf("failed to listen: %w", err)
-		// }
-
-		srv = &http.Server{
-			Addr:         ":443",
-			Handler:      mux,
-			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 10 * time.Second,
-			IdleTimeout:  60 * time.Second,
+		apiLn, err = s.ListenTLS("tcp", ":443")
+		if err != nil {
+			return fmt.Errorf("failed to listen: %w", err)
 		}
 
 		logger.Info("Started Tailscale server",
 			"addr", fmt.Sprintf("https://%s", s.CertDomains()[0]),
 		)
-		return srv.Serve(publicLn)
 	} else {
-		// Run as regular HTTP server
-		srv = &http.Server{
-			Addr:         ":8080",
-			Handler:      mux,
-			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 10 * time.Second,
-			IdleTimeout:  60 * time.Second,
+		var err error
+
+		webhookLn, err = net.Listen("tcp", viper.GetString("webhook-addr"))
+		if err != nil {
+			return fmt.Errorf("failed to listen: %w", err)
 		}
-		logger.Info("Started HTTP server", "addr", srv.Addr)
-		return srv.ListenAndServe()
+
+		apiLn, err = net.Listen("tcp", viper.GetString("api-addr"))
+		if err != nil {
+			return fmt.Errorf("failed to listen: %w", err)
+		}
+
+		logger.Info("Started webhook HTTP server", "addr", webhookLn.Addr())
+		logger.Info("Started API HTTP server", "addr", apiLn.Addr())
 	}
+
+	g := new(errgroup.Group)
+	g.Go(func() error { return webhookSrv.Serve(webhookLn) })
+	g.Go(func() error { return apiSrv.Serve(apiLn) })
+	return g.Wait()
 }
 
 func main() {
