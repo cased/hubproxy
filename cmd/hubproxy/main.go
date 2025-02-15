@@ -103,6 +103,7 @@ func viperReadFile(key string) {
 			)
 			return
 		}
+		slog.Debug("read config from file", "key", key, "path", path)
 		viper.Set(key, strings.TrimSpace(string(content)))
 	}
 }
