@@ -225,10 +225,10 @@ func run() error {
 			Hostname: hostname,
 			AuthKey:  authKey,
 			Logf: func(format string, args ...any) {
-				logger.Debug("[tsnet]: " + fmt.Sprintf(format, args...))
+				logger.Debug("tsnet: " + fmt.Sprintf(format, args...))
 			},
 			UserLogf: func(format string, args ...any) {
-				logger.Info("[tsnet]: " + fmt.Sprintf(format, args...))
+				logger.Info("tsnet: " + fmt.Sprintf(format, args...))
 			},
 		}
 		defer s.Close()
