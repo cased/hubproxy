@@ -28,9 +28,9 @@ func NewStorage(ctx context.Context, dsn string) (storage.Storage, error) {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
 
-	if err := db.PingContext(ctx); err != nil {
+	if pingErr := db.PingContext(ctx); pingErr != nil {
 		db.Close()
-		return nil, fmt.Errorf("pinging database: %w", err)
+		return nil, fmt.Errorf("pinging database: %w", pingErr)
 	}
 
 	// Get the driver name from the URL

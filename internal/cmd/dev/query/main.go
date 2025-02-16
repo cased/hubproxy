@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -35,7 +36,7 @@ func main() {
 	if *stats {
 		sinceTime := time.Now().Add(-*since)
 		var eventStats map[string]int64
-		eventStats, err = store.GetStats(nil, sinceTime)
+		eventStats, err = store.GetStats(context.TODO(), sinceTime)
 		if err != nil {
 			log.Fatalf("Failed to get event stats: %v", err)
 		}
@@ -60,7 +61,7 @@ func main() {
 		opts.Repository = *repo
 	}
 
-	events, total, err := store.ListEvents(nil, opts)
+	events, total, err := store.ListEvents(context.TODO(), opts)
 	if err != nil {
 		log.Fatalf("Failed to list events: %v", err)
 	}

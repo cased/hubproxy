@@ -135,7 +135,7 @@ func (s *BaseStorage) ListEvents(ctx context.Context, opts storage.QueryOptions)
 	var events []*storage.Event
 	for rows.Next() {
 		var event storage.Event
-		err := rows.Scan(
+		scanErr := rows.Scan(
 			&event.ID,
 			&event.Type,
 			&event.Payload,
@@ -145,8 +145,8 @@ func (s *BaseStorage) ListEvents(ctx context.Context, opts storage.QueryOptions)
 			&event.Repository,
 			&event.Sender,
 		)
-		if err != nil {
-			return nil, 0, fmt.Errorf("scanning row: %w", err)
+		if scanErr != nil {
+			return nil, 0, fmt.Errorf("scanning row: %w", scanErr)
 		}
 		events = append(events, &event)
 	}
@@ -225,7 +225,7 @@ func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, 
 	}
 
 	event := &storage.Event{}
-	err = rows.Scan(
+	scanErr := rows.Scan(
 		&event.ID,
 		&event.Type,
 		&event.Payload,
@@ -235,8 +235,8 @@ func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, 
 		&event.Repository,
 		&event.Sender,
 	)
-	if err != nil {
-		return nil, fmt.Errorf("scanning row: %w", err)
+	if scanErr != nil {
+		return nil, fmt.Errorf("scanning row: %w", scanErr)
 	}
 
 	return event, nil
