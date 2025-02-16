@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"hubproxy/internal/storage"
-	"hubproxy/internal/storage/factory"
+	"hubproxy/internal/storage/sql"
 )
 
 func NewTestDB(t *testing.T) storage.Storage {
@@ -17,7 +17,7 @@ func NewTestDB(t *testing.T) storage.Storage {
 	dbPath := filepath.Join(dir, "test.db")
 
 	// Create a new SQLite database
-	store, err := factory.NewStorageFromURI("sqlite://" + dbPath)
+	store, err := sql.New("sqlite://" + dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create test database: %v", err)
 	}

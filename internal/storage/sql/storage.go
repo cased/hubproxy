@@ -21,7 +21,34 @@ type Storage struct {
 	db *sql.DB
 }
 
-func NewStorage(ctx context.Context, dsn string) (storage.Storage, error) {
+// New creates a new storage instance from a database URI.
+// The URI format follows the dburl package conventions:
+//   - SQLite: sqlite:/path/to/file.db or sqlite:file.db
+//   - MySQL: mysql://user:pass@host/dbname
+//   - PostgreSQL: postgres://user:pass@host/dbname
+func New(uri string) (storage.Storage, error) {
+	// Parse the URL to validate it
+	_, err := dburl.Parse(uri)
+	if err != nil {
+		return nil, fmt.Errorf("invalid database URL: %w", err)
+	}
+
+	// Create storage using the unified SQL implementation
+	store, err := newStorage(context.Background(), uri)
+	if err != nil {
+		return nil, fmt.Errorf("creating storage: %w", err)
+	}
+
+	// Create schema if needed
+	if err := store.CreateSchema(context.Background()); err != nil {
+		store.Close()
+		return nil, fmt.Errorf("creating schema: %w", err)
+	}
+
+	return store, nil
+}
+
+func newStorage(ctx context.Context, dsn string) (storage.Storage, error) {
 	// Open database using dburl
 	db, err := dburl.Open(dsn)
 	if err != nil {

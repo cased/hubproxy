@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"hubproxy/internal/storage"
-	"hubproxy/internal/storage/factory"
+	"hubproxy/internal/storage/sql"
 )
 
 func main() {
@@ -26,7 +26,7 @@ func main() {
 	var store storage.Storage
 
 	// Connect to SQLite database
-	store, err = factory.NewStorageFromURI("sqlite:" + *dbPath)
+	store, err = sql.New("sqlite:" + *dbPath)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
