@@ -16,6 +16,8 @@ import (
 	"hubproxy/internal/webhook"
 	"log/slog"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -237,10 +239,17 @@ func run() error {
 
 	// Create webhook server
 	var webhookLn net.Listener
-	webhookMux := http.NewServeMux()
-	webhookMux.Handle("/webhook", logMiddleware("webhook", webhookHandler))
+	webhookRouter := chi.NewRouter()
+
+	webhookRouter.Use(middleware.RealIP)
+	webhookRouter.Use(middleware.Recoverer)
+	webhookRouter.Use(func(next http.Handler) http.Handler {
+		return logMiddleware("webhook", next)
+	})
+
+	webhookRouter.Handle("/webhook", webhookHandler)
 	webhookSrv := &http.Server{
-		Handler:      wrapMuxWithNotFound("webhook", webhookMux),
+		Handler:      webhookRouter,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
