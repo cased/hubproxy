@@ -81,6 +81,7 @@ and your target services.`,
 	flags.String("target-url", "", "Target URL to forward webhooks to")
 	flags.String("log-level", "info", "Log level (debug, info, warn, error)")
 	flags.Bool("validate-ip", true, "Validate that requests come from GitHub IPs")
+	flags.Bool("enable-tailscale", false, "Enable Tailscale integration")
 	flags.String("ts-authkey", "", "Tailscale auth key for tsnet")
 	flags.String("ts-hostname", "hubproxy", "Tailscale hostname (will be <hostname>.<tailnet>.ts.net)")
 	flags.String("db", "", "Database URI (e.g., sqlite:hubproxy.db, mysql://user:pass@host/db, postgres://user:pass@host/db)")
@@ -182,15 +183,11 @@ func run() error {
 	webhookHTTPClient := &http.Client{}
 
 	// Setup optional Tailscale server
-	// TODO: Add more explicit --use-tailscale flag
 	var tsnetServer *tsnet.Server
-	if authKey := viper.GetString("ts-authkey"); authKey != "" {
-		// Run as Tailscale service
-		hostname := viper.GetString("ts-hostname")
-
+	if viper.GetBool("enable-tailscale") {
 		tsnetServer = &tsnet.Server{
-			Hostname: hostname,
-			AuthKey:  authKey,
+			Hostname: viper.GetString("ts-hostname"),
+			AuthKey:  viper.GetString("ts-authkey"),
 			Logf: func(format string, args ...any) {
 				logger.Debug("tsnet: " + fmt.Sprintf(format, args...))
 			},
