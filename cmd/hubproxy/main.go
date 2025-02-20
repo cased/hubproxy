@@ -16,6 +16,8 @@ import (
 	"hubproxy/internal/webhook"
 	"log/slog"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -86,6 +88,7 @@ and your target services.`,
 	flags.String("target-url", "", "Target URL to forward webhooks to")
 	flags.String("log-level", "info", "Log level (debug, info, warn, error)")
 	flags.Bool("validate-ip", true, "Validate that requests come from GitHub IPs")
+	flags.Bool("trusted-proxy", false, "Trust the X-Forwarded-For header for IP validation")
 	flags.Bool("enable-tailscale", false, "Enable Tailscale integration")
 	flags.String("ts-authkey", "", "Tailscale auth key for tsnet")
 	flags.String("ts-hostname", "hubproxy", "Tailscale hostname (will be <hostname>.<tailnet>.ts.net)")
@@ -112,35 +115,6 @@ func viperReadFile(key string) {
 		slog.Debug("read config from file", "key", key, "path", path)
 		viper.Set(key, strings.TrimSpace(string(content)))
 	}
-}
-
-func logMiddleware(listenerType string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("handled request",
-			"listener", listenerType,
-			"method", r.Method,
-			"path", r.URL.Path,
-			"remote_addr", r.RemoteAddr,
-		)
-		next.ServeHTTP(w, r)
-	})
-}
-
-func wrapMuxWithNotFound(listenerType string, mux *http.ServeMux) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h, pattern := mux.Handler(r)
-		if pattern == "" {
-			slog.Info("handled request",
-				"listener", listenerType,
-				"method", r.Method,
-				"path", r.URL.Path,
-				"remote_addr", r.RemoteAddr,
-			)
-			http.NotFound(w, r)
-			return
-		}
-		h.ServeHTTP(w, r)
-	})
 }
 
 func run() error {
@@ -206,6 +180,9 @@ func run() error {
 			return fmt.Errorf("failed to start Tailscale server: %w", err)
 		}
 
+		// Always trust Tailscale funnel proxy
+		viper.Set("trusted-proxy", true)
+
 		webhookHTTPClient = tsnetServer.HTTPClient()
 	}
 
@@ -237,10 +214,19 @@ func run() error {
 
 	// Create webhook server
 	var webhookLn net.Listener
-	webhookMux := http.NewServeMux()
-	webhookMux.Handle("/webhook", logMiddleware("webhook", webhookHandler))
+	webhookRouter := chi.NewRouter()
+
+	webhookRouter.Use(middleware.RequestID)
+	if viper.GetBool("trusted-proxy") {
+		webhookRouter.Use(middleware.RealIP)
+	}
+	webhookRouter.Use(middleware.Logger)
+	webhookRouter.Use(middleware.Heartbeat("/healthz"))
+	webhookRouter.Use(middleware.Recoverer)
+
+	webhookRouter.Handle("/webhook", webhookHandler)
 	webhookSrv := &http.Server{
-		Handler:      wrapMuxWithNotFound("webhook", webhookMux),
+		Handler:      webhookRouter,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -249,14 +235,24 @@ func run() error {
 	// Create API server
 	var apiLn net.Listener
 	apiHandler := api.NewHandler(store, logger)
-	apiMux := http.NewServeMux()
-	apiMux.Handle("/api/events", logMiddleware("api", http.HandlerFunc(apiHandler.ListEvents)))
-	apiMux.Handle("/api/stats", logMiddleware("api", http.HandlerFunc(apiHandler.GetStats)))
-	apiMux.Handle("/api/events/", logMiddleware("api", http.HandlerFunc(apiHandler.ReplayEvent))) // Handle replay endpoint
-	apiMux.Handle("/api/replay", logMiddleware("api", http.HandlerFunc(apiHandler.ReplayRange)))  // Handle range replay
-	apiMux.Handle("/metrics", logMiddleware("api", promhttp.Handler()))                           // Add Prometheus metrics endpoint
+	apiRouter := chi.NewRouter()
+
+	apiRouter.Use(middleware.RequestID)
+	if viper.GetBool("trusted-proxy") {
+		apiRouter.Use(middleware.RealIP)
+	}
+	apiRouter.Use(middleware.Logger)
+	apiRouter.Use(middleware.Heartbeat("/healthz"))
+	apiRouter.Use(middleware.Recoverer)
+
+	apiRouter.Get("/api/events", apiHandler.ListEvents)
+	apiRouter.Get("/api/stats", apiHandler.GetStats)
+	apiRouter.Get("/api/events/{id}", apiHandler.ReplayEvent)
+	apiRouter.Get("/api/replay", apiHandler.ReplayRange)
+	apiRouter.Handle("/metrics", promhttp.Handler())
+
 	apiSrv := &http.Server{
-		Handler:      wrapMuxWithNotFound("api", apiMux),
+		Handler:      apiRouter,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,

@@ -35,6 +35,12 @@ func (h *Handler) ListEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.store == nil {
+		h.logger.Error("Storage not initialized")
+		http.Error(w, "Storage not configured", http.StatusServiceUnavailable)
+		return
+	}
+
 	// Parse query parameters
 	query := r.URL.Query()
 	opts := storage.QueryOptions{
@@ -115,9 +121,16 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get stats
-	since := time.Time{}
-	if sinceStr := r.URL.Query().Get("since"); sinceStr != "" {
+	var since time.Time
+
+	if h.store == nil {
+		h.logger.Error("Storage not initialized")
+		http.Error(w, "Storage not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	sinceStr := r.URL.Query().Get("since")
+	if sinceStr != "" {
 		t, err := time.Parse(time.RFC3339, sinceStr)
 		if err != nil {
 			http.Error(w, "Invalid since parameter", http.StatusBadRequest)
