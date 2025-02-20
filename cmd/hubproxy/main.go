@@ -88,6 +88,7 @@ and your target services.`,
 	flags.String("target-url", "", "Target URL to forward webhooks to")
 	flags.String("log-level", "info", "Log level (debug, info, warn, error)")
 	flags.Bool("validate-ip", true, "Validate that requests come from GitHub IPs")
+	flags.Bool("trusted-proxy", false, "Trust the X-Forwarded-For header for IP validation")
 	flags.Bool("enable-tailscale", false, "Enable Tailscale integration")
 	flags.String("ts-authkey", "", "Tailscale auth key for tsnet")
 	flags.String("ts-hostname", "hubproxy", "Tailscale hostname (will be <hostname>.<tailnet>.ts.net)")
@@ -179,6 +180,9 @@ func run() error {
 			return fmt.Errorf("failed to start Tailscale server: %w", err)
 		}
 
+		// Always trust Tailscale funnel proxy
+		viper.Set("trusted-proxy", true)
+
 		webhookHTTPClient = tsnetServer.HTTPClient()
 	}
 
@@ -213,7 +217,9 @@ func run() error {
 	webhookRouter := chi.NewRouter()
 
 	webhookRouter.Use(middleware.RequestID)
-	webhookRouter.Use(middleware.RealIP)
+	if viper.GetBool("trusted-proxy") {
+		webhookRouter.Use(middleware.RealIP)
+	}
 	webhookRouter.Use(middleware.Logger)
 	webhookRouter.Use(middleware.Heartbeat("/healthz"))
 	webhookRouter.Use(middleware.Recoverer)
@@ -232,7 +238,9 @@ func run() error {
 	apiRouter := chi.NewRouter()
 
 	apiRouter.Use(middleware.RequestID)
-	apiRouter.Use(middleware.RealIP)
+	if viper.GetBool("trusted-proxy") {
+		apiRouter.Use(middleware.RealIP)
+	}
 	apiRouter.Use(middleware.Logger)
 	apiRouter.Use(middleware.Heartbeat("/healthz"))
 	apiRouter.Use(middleware.Recoverer)
