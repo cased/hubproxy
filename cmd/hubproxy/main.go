@@ -214,6 +214,7 @@ func run() error {
 
 	webhookRouter.Use(middleware.RealIP)
 	webhookRouter.Use(middleware.Logger)
+	webhookRouter.Use(middleware.Heartbeat("/healthz"))
 	webhookRouter.Use(middleware.Recoverer)
 
 	webhookRouter.Handle("/webhook", webhookHandler)
@@ -231,6 +232,7 @@ func run() error {
 
 	apiRouter.Use(middleware.RealIP)
 	apiRouter.Use(middleware.Logger)
+	apiRouter.Use(middleware.Heartbeat("/healthz"))
 	apiRouter.Use(middleware.Recoverer)
 
 	apiRouter.Get("/api/events", apiHandler.ListEvents)
