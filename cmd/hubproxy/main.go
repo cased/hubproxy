@@ -212,6 +212,7 @@ func run() error {
 	var webhookLn net.Listener
 	webhookRouter := chi.NewRouter()
 
+	webhookRouter.Use(middleware.RequestID)
 	webhookRouter.Use(middleware.RealIP)
 	webhookRouter.Use(middleware.Logger)
 	webhookRouter.Use(middleware.Heartbeat("/healthz"))
@@ -230,6 +231,7 @@ func run() error {
 	apiHandler := api.NewHandler(store, logger)
 	apiRouter := chi.NewRouter()
 
+	apiRouter.Use(middleware.RequestID)
 	apiRouter.Use(middleware.RealIP)
 	apiRouter.Use(middleware.Logger)
 	apiRouter.Use(middleware.Heartbeat("/healthz"))
