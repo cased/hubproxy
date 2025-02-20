@@ -53,6 +53,11 @@ and your target services.`,
 				return fmt.Errorf("failed to bind flags: %w", err)
 			}
 
+			// Use HUBPROXY_CONFIG if no --config is given
+			if configFile == "" && os.Getenv("HUBPROXY_CONFIG") != "" {
+				configFile = os.Getenv("HUBPROXY_CONFIG")
+			}
+
 			// Load config file if specified
 			if configFile != "" {
 				viper.SetConfigFile(configFile)
