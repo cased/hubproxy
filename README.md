@@ -517,8 +517,9 @@ log-level: info
 validate-ip: true
 
 # Tailscale configuration (optional)
-ts-authkey: ""
-ts-hostname: hubproxy
+# enable-tailscale: true
+# ts-authkey: ""
+# ts-hostname: hubproxy
 
 # Database configuration
 db: sqlite:hubproxy.db
@@ -541,6 +542,7 @@ Most configuration options can also be set via command-line flags:
 - `--target-url`: Target URL to forward webhooks to
 - `--log-level`: Log level (debug, info, warn, error)
 - `--validate-ip`: Validate that requests come from GitHub IPs
+- `--enable-tailscale`: Enable Tailscale integration
 - `--ts-authkey`: Tailscale auth key for tsnet
 - `--ts-hostname`: Tailscale hostname
 - `--db`: Database URI (e.g., sqlite:file.db, mysql://user:pass@host/db, postgresql://user:pass@host/db)
@@ -584,7 +586,7 @@ To use this feature:
 1. Generate an auth key from your [Tailscale Admin Console](https://login.tailscale.com/admin/settings/keys)
 2. Run hubproxy with the following flags:
    ```bash
-   hubproxy --ts-authkey=ts-abc123... --ts-hostname=hubproxy
+   hubproxy --enable-tailscale --ts-authkey=ts-abc123... --ts-hostname=hubproxy
    ```
 
 Your proxy will be accessible at `hubproxy.<tailnet>.ts.net`. You can customize the hostname using the `--ts-hostname` flag.
