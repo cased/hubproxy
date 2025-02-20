@@ -116,35 +116,6 @@ func viperReadFile(key string) {
 	}
 }
 
-func logMiddleware(listenerType string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("handled request",
-			"listener", listenerType,
-			"method", r.Method,
-			"path", r.URL.Path,
-			"remote_addr", r.RemoteAddr,
-		)
-		next.ServeHTTP(w, r)
-	})
-}
-
-func wrapMuxWithNotFound(listenerType string, mux *http.ServeMux) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h, pattern := mux.Handler(r)
-		if pattern == "" {
-			slog.Info("handled request",
-				"listener", listenerType,
-				"method", r.Method,
-				"path", r.URL.Path,
-				"remote_addr", r.RemoteAddr,
-			)
-			http.NotFound(w, r)
-			return
-		}
-		h.ServeHTTP(w, r)
-	})
-}
-
 func run() error {
 	ctx := context.Background()
 
@@ -242,10 +213,8 @@ func run() error {
 	webhookRouter := chi.NewRouter()
 
 	webhookRouter.Use(middleware.RealIP)
+	webhookRouter.Use(middleware.Logger)
 	webhookRouter.Use(middleware.Recoverer)
-	webhookRouter.Use(func(next http.Handler) http.Handler {
-		return logMiddleware("webhook", next)
-	})
 
 	webhookRouter.Handle("/webhook", webhookHandler)
 	webhookSrv := &http.Server{
@@ -258,14 +227,20 @@ func run() error {
 	// Create API server
 	var apiLn net.Listener
 	apiHandler := api.NewHandler(store, logger)
-	apiMux := http.NewServeMux()
-	apiMux.Handle("/api/events", logMiddleware("api", http.HandlerFunc(apiHandler.ListEvents)))
-	apiMux.Handle("/api/stats", logMiddleware("api", http.HandlerFunc(apiHandler.GetStats)))
-	apiMux.Handle("/api/events/", logMiddleware("api", http.HandlerFunc(apiHandler.ReplayEvent))) // Handle replay endpoint
-	apiMux.Handle("/api/replay", logMiddleware("api", http.HandlerFunc(apiHandler.ReplayRange)))  // Handle range replay
-	apiMux.Handle("/metrics", logMiddleware("api", promhttp.Handler()))                           // Add Prometheus metrics endpoint
+	apiRouter := chi.NewRouter()
+
+	apiRouter.Use(middleware.RealIP)
+	apiRouter.Use(middleware.Logger)
+	apiRouter.Use(middleware.Recoverer)
+
+	apiRouter.Get("/api/events", apiHandler.ListEvents)
+	apiRouter.Get("/api/stats", apiHandler.GetStats)
+	apiRouter.Get("/api/events/{id}", apiHandler.ReplayEvent)
+	apiRouter.Get("/api/replay", apiHandler.ReplayRange)
+	apiRouter.Handle("/metrics", promhttp.Handler())
+
 	apiSrv := &http.Server{
-		Handler:      wrapMuxWithNotFound("api", apiMux),
+		Handler:      apiRouter,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
