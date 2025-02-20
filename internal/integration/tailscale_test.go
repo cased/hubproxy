@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tsnet"
 
+	"hubproxy/internal/storage"
 	"hubproxy/internal/webhook"
 )
 
@@ -53,11 +54,12 @@ func TestTailscaleIntegration(t *testing.T) {
 
 	// Create webhook handler
 	handler := webhook.NewHandler(webhook.Options{
-		Secret:     secret,
-		TargetURL:  targetServer.URL,
-		Store:      store,
-		Logger:     logger,
-		ValidateIP: false,
+		Secret:           secret,
+		TargetURL:        targetServer.URL,
+		Store:            store,
+		Logger:           logger,
+		ValidateIP:       false,
+		MetricsCollector: storage.NewDBMetricsCollector(store, logger),
 	})
 
 	// Create HTTP mux

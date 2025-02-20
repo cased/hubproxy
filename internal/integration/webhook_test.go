@@ -3,6 +3,7 @@ package integration
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -19,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"hubproxy/internal/storage"
 	"hubproxy/internal/webhook"
 )
 
@@ -43,12 +45,21 @@ func TestWebhookIntegration(t *testing.T) {
 	}))
 	defer ts.Close()
 
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	// Create and start metrics collector
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	metricsCollector := storage.NewDBMetricsCollector(store, logger)
+	metricsCollector.StartMetricsCollection(ctx, time.Second)
+
 	// Create webhook handler
 	handler := webhook.NewHandler(webhook.Options{
-		Secret:    secret,
-		TargetURL: ts.URL,
-		Logger:    slog.New(slog.NewJSONHandler(os.Stdout, nil)),
-		Store:     store,
+		Secret:           secret,
+		TargetURL:        ts.URL,
+		Logger:           logger,
+		Store:            store,
+		MetricsCollector: metricsCollector,
 	})
 
 	// Create test server with webhook handler
@@ -192,12 +203,21 @@ func TestWebhookUnixSocket(t *testing.T) {
 		receivedCh <- body
 	}()
 
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	// Create and start metrics collector
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	metricsCollector := storage.NewDBMetricsCollector(store, logger)
+	metricsCollector.StartMetricsCollection(ctx, time.Second)
+
 	// Create webhook handler with Unix socket target
 	handler := webhook.NewHandler(webhook.Options{
-		Secret:    secret,
-		TargetURL: "unix://" + socketPath,
-		Logger:    slog.New(slog.NewJSONHandler(os.Stdout, nil)),
-		Store:     store,
+		Secret:           secret,
+		TargetURL:        "unix://" + socketPath,
+		Logger:           logger,
+		Store:            store,
+		MetricsCollector: metricsCollector,
 	})
 
 	// Create test server with webhook handler

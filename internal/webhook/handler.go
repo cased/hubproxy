@@ -58,21 +58,23 @@ var (
 )
 
 type Handler struct {
-	secret      string
-	targetURL   string
-	httpClient  *http.Client
-	logger      *slog.Logger
-	ipValidator *security.IPValidator
-	store       storage.Storage
+	secret           string
+	targetURL        string
+	httpClient       *http.Client
+	logger           *slog.Logger
+	ipValidator      *security.IPValidator
+	store            storage.Storage
+	metricsCollector *storage.DBMetricsCollector
 }
 
 type Options struct {
-	Secret     string
-	TargetURL  string
-	HTTPClient *http.Client
-	Logger     *slog.Logger
-	ValidateIP bool
-	Store      storage.Storage
+	Secret           string
+	TargetURL        string
+	HTTPClient       *http.Client
+	Logger           *slog.Logger
+	ValidateIP       bool
+	Store            storage.Storage
+	MetricsCollector *storage.DBMetricsCollector
 }
 
 func NewHandler(opts Options) *Handler {
@@ -101,12 +103,13 @@ func NewHandler(opts Options) *Handler {
 	}
 
 	return &Handler{
-		secret:      opts.Secret,
-		targetURL:   opts.TargetURL,
-		httpClient:  httpClient,
-		logger:      opts.Logger,
-		ipValidator: ipValidator,
-		store:       opts.Store,
+		secret:           opts.Secret,
+		targetURL:        opts.TargetURL,
+		httpClient:       httpClient,
+		logger:           opts.Logger,
+		ipValidator:      ipValidator,
+		store:            opts.Store,
+		metricsCollector: opts.MetricsCollector,
 	}
 }
 
@@ -288,6 +291,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			webhookStoredEvents.Inc()
 		}
+
+		h.metricsCollector.EnqueueGatherMetrics(r.Context())
 	}
 
 	if h.targetURL != "" {
