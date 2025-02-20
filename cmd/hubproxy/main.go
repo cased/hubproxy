@@ -12,7 +12,7 @@ import (
 
 	"hubproxy/internal/api"
 	"hubproxy/internal/storage"
-	"hubproxy/internal/storage/factory"
+	"hubproxy/internal/storage/sql"
 	"hubproxy/internal/webhook"
 	"log/slog"
 
@@ -214,7 +214,7 @@ func run() error {
 	dbURI := viper.GetString("db")
 	if dbURI != "" {
 		var err error
-		store, err = factory.NewStorageFromURI(dbURI)
+		store, err = sql.New(dbURI)
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage: %w", err)
 		}

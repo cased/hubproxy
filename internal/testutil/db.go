@@ -1,42 +1,32 @@
 package testutil
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"hubproxy/internal/storage"
-	"hubproxy/internal/storage/sql/sqlite"
+	"hubproxy/internal/storage/sql"
 )
 
-// SetupTestDB creates a temporary SQLite database for testing
-func SetupTestDB(t testing.TB) storage.Storage {
-	// Create temp dir for test database
-	tmpDir, err := os.MkdirTemp("", "hubproxy-test-*")
-	require.NoError(t, err)
+func NewTestDB(t *testing.T) storage.Storage {
+	t.Helper()
 
-	// Register cleanup
-	t.Cleanup(func() {
-		os.RemoveAll(tmpDir)
-	})
+	// Create a temporary directory for the SQLite database
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
 
-	// Create SQLite database
-	dbPath := filepath.Join(tmpDir, "test.db")
-	store, err := sqlite.NewStorage(dbPath)
-	require.NoError(t, err)
+	// Create a new SQLite database
+	store, err := sql.New("sqlite://" + dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create test database: %v", err)
+	}
 
-	// Register store cleanup
+	// Register cleanup function
 	t.Cleanup(func() {
 		store.Close()
+		os.Remove(dbPath)
 	})
-
-	// Create schema
-	ctx := context.Background()
-	err = store.CreateSchema(ctx)
-	require.NoError(t, err)
 
 	return store
 }
