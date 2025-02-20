@@ -69,6 +69,7 @@ type Handler struct {
 type Options struct {
 	Secret     string
 	TargetURL  string
+	HTTPClient *http.Client
 	Logger     *slog.Logger
 	ValidateIP bool
 	Store      storage.Storage
@@ -80,20 +81,29 @@ func NewHandler(opts Options) *Handler {
 		ipValidator = security.NewIPValidator(1*time.Hour, false) // Update IP ranges every hour
 	}
 
-	transport := &http.Transport{}
+	httpClient := opts.HTTPClient
 
-	// Swap out HTTP client transport to use Unix socket
+	// Swap out HTTP client to use Unix socket
 	if strings.HasPrefix(opts.TargetURL, "unix://") {
 		socketPath := strings.TrimPrefix(opts.TargetURL, "unix://")
-		transport.DialContext = func(ctx context.Context, _, addr string) (net.Conn, error) {
-			return net.Dial("unix", socketPath)
+		httpClient = &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+					return net.Dial("unix", socketPath)
+				},
+			},
 		}
+	}
+
+	// Use default HTTP client if not provided
+	if httpClient == nil {
+		httpClient = &http.Client{}
 	}
 
 	return &Handler{
 		secret:      opts.Secret,
 		targetURL:   opts.TargetURL,
-		httpClient:  &http.Client{Transport: transport},
+		httpClient:  httpClient,
 		logger:      opts.Logger,
 		ipValidator: ipValidator,
 		store:       opts.Store,

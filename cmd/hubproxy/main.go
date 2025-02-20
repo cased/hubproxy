@@ -179,6 +179,34 @@ func run() error {
 		logger.Info("running in log-only mode (no target URL specified)")
 	}
 
+	webhookHTTPClient := &http.Client{}
+
+	// Setup optional Tailscale server
+	// TODO: Add more explicit --use-tailscale flag
+	var tsnetServer *tsnet.Server
+	if authKey := viper.GetString("ts-authkey"); authKey != "" {
+		// Run as Tailscale service
+		hostname := viper.GetString("ts-hostname")
+
+		tsnetServer = &tsnet.Server{
+			Hostname: hostname,
+			AuthKey:  authKey,
+			Logf: func(format string, args ...any) {
+				logger.Debug("tsnet: " + fmt.Sprintf(format, args...))
+			},
+			UserLogf: func(format string, args ...any) {
+				logger.Info("tsnet: " + fmt.Sprintf(format, args...))
+			},
+		}
+		defer tsnetServer.Close()
+
+		if err := tsnetServer.Start(); err != nil {
+			return fmt.Errorf("failed to start Tailscale server: %w", err)
+		}
+
+		webhookHTTPClient = tsnetServer.HTTPClient()
+	}
+
 	// Initialize storage if DB URI is provided
 	var store storage.Storage
 	dbURI := viper.GetString("db")
@@ -199,6 +227,7 @@ func run() error {
 	webhookHandler := webhook.NewHandler(webhook.Options{
 		Secret:     viper.GetString("webhook-secret"),
 		TargetURL:  targetURL,
+		HTTPClient: webhookHTTPClient,
 		Logger:     logger,
 		Store:      store,
 		ValidateIP: viper.GetBool("validate-ip"),
@@ -232,35 +261,20 @@ func run() error {
 	}
 
 	// Start server
-	if authKey := viper.GetString("ts-authkey"); authKey != "" {
+	if tsnetServer != nil {
 		var err error
 
-		// Run as Tailscale service
-		hostname := viper.GetString("ts-hostname")
-
-		s := &tsnet.Server{
-			Hostname: hostname,
-			AuthKey:  authKey,
-			Logf: func(format string, args ...any) {
-				logger.Debug("tsnet: " + fmt.Sprintf(format, args...))
-			},
-			UserLogf: func(format string, args ...any) {
-				logger.Info("tsnet: " + fmt.Sprintf(format, args...))
-			},
-		}
-		defer s.Close()
-
-		apiLn, err = s.ListenTLS("tcp", ":443")
+		apiLn, err = tsnetServer.ListenTLS("tcp", ":443")
 		if err != nil {
 			return fmt.Errorf("failed to listen: %w", err)
 		}
 
-		webhookLn, err = s.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
+		webhookLn, err = tsnetServer.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
 		if err != nil {
 			return fmt.Errorf("failed to listen: %w", err)
 		}
 
-		domains := s.CertDomains()
+		domains := tsnetServer.CertDomains()
 		addr := "https://[unknown]"
 		if len(domains) > 0 {
 			addr = fmt.Sprintf("https://%s", domains[0])
