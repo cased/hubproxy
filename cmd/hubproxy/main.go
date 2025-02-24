@@ -223,6 +223,7 @@ func run() error {
 
 	webhookRouter.Use(middleware.RequestID)
 	if viper.GetBool("trusted-proxy") {
+		logger.Debug("installing RealIP middleware on webhook server")
 		webhookRouter.Use(middleware.RealIP)
 	}
 	webhookRouter.Use(middleware.Logger)
@@ -244,6 +245,7 @@ func run() error {
 
 	apiRouter.Use(middleware.RequestID)
 	if viper.GetBool("trusted-proxy") {
+		logger.Debug("installing RealIP middleware on API server")
 		apiRouter.Use(middleware.RealIP)
 	}
 	apiRouter.Use(middleware.Logger)

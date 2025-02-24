@@ -63,6 +63,7 @@ type Handler struct {
 	httpClient       *http.Client
 	logger           *slog.Logger
 	ipValidator      *security.IPValidator
+	validateIP       bool
 	store            storage.Storage
 	metricsCollector *storage.DBMetricsCollector
 }
@@ -78,10 +79,8 @@ type Options struct {
 }
 
 func NewHandler(opts Options) *Handler {
-	var ipValidator *security.IPValidator
-	if opts.ValidateIP {
-		ipValidator = security.NewIPValidator(1*time.Hour, false) // Update IP ranges every hour
-	}
+	// Update IP ranges every hour
+	ipValidator := security.NewIPValidator(1*time.Hour, false)
 
 	httpClient := opts.HTTPClient
 
@@ -108,6 +107,7 @@ func NewHandler(opts Options) *Handler {
 		httpClient:       httpClient,
 		logger:           opts.Logger,
 		ipValidator:      ipValidator,
+		validateIP:       opts.ValidateIP,
 		store:            opts.Store,
 		metricsCollector: opts.MetricsCollector,
 	}
@@ -171,11 +171,19 @@ func (h *Handler) ValidateGitHubEvent(r *http.Request) error {
 	}
 
 	// Validate IP if enabled
-	if h.ipValidator != nil {
-		ip := strings.Split(r.RemoteAddr, ":")[0]
-		if !h.ipValidator.IsGitHubIP(ip) {
+	ip := strings.Split(r.RemoteAddr, ":")[0]
+	if !h.ipValidator.IsGitHubIP(ip) {
+		h.logger.Debug("chi.middleware.RealIP info",
+			"RemoteAddr", r.RemoteAddr,
+			"True-Client-Ip", r.Header.Get("True-Client-Ip"),
+			"X-Forwarded-For", r.Header.Get("X-Forwarded-For"),
+			"X-Real-Ip", r.Header.Get("X-Real-Ip"))
+		// Only throw error if validation is enabled
+		if h.validateIP {
 			h.logger.Error("request from non-GitHub IP", "ip", ip)
 			return fmt.Errorf("request from non-GitHub IP: %s", ip)
+		} else {
+			h.logger.Warn("request from non-GitHub IP", "ip", ip)
 		}
 	}
 
