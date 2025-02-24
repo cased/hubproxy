@@ -93,6 +93,7 @@ and your target services.`,
 	flags.String("ts-authkey", "", "Tailscale auth key for tsnet")
 	flags.String("ts-hostname", "hubproxy", "Tailscale hostname (will be <hostname>.<tailnet>.ts.net)")
 	flags.String("db", "", "Database URI (e.g., sqlite:hubproxy.db, mysql://user:pass@host/db, postgres://user:pass@host/db)")
+	flags.Duration("metrics-interval", 0*time.Minute, "Interval at which to gather database metrics")
 	flags.Bool("test-mode", false, "Skip server startup for testing")
 
 	return cmd
@@ -202,14 +203,18 @@ func run() error {
 		}
 	}
 
+	metricsCollector := storage.NewDBMetricsCollector(store, logger)
+	metricsCollector.StartMetricsCollection(ctx, viper.GetDuration("metrics-interval"))
+
 	// Create webhook handler
 	webhookHandler := webhook.NewHandler(webhook.Options{
-		Secret:     viper.GetString("webhook-secret"),
-		TargetURL:  targetURL,
-		HTTPClient: webhookHTTPClient,
-		Logger:     logger,
-		Store:      store,
-		ValidateIP: viper.GetBool("validate-ip"),
+		Secret:           viper.GetString("webhook-secret"),
+		TargetURL:        targetURL,
+		HTTPClient:       webhookHTTPClient,
+		Logger:           logger,
+		Store:            store,
+		ValidateIP:       viper.GetBool("validate-ip"),
+		MetricsCollector: metricsCollector,
 	})
 
 	// Create webhook server
