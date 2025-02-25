@@ -12,7 +12,7 @@ import (
 type contextKey string
 
 const (
-	connectionContextKey contextKey = "connection"
+	ConnectionContextKey contextKey = "connection"
 )
 
 // Hack to set http.Request.RemoteAddr to the client's IP address
@@ -22,7 +22,7 @@ const (
 func TailscaleFunnelIP(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			v := r.Context().Value(connectionContextKey)
+			v := r.Context().Value(ConnectionContextKey)
 			if v == nil {
 				logger.Warn("expected request context to set connection",
 					"RemoteAddr", r.RemoteAddr)
