@@ -27,13 +27,13 @@ func TailscaleFunnelIP(logger *slog.Logger) func(http.Handler) http.Handler {
 				logger.Warn("expected request context to set connection",
 					"RemoteAddr", r.RemoteAddr)
 			} else if netConn, ok := v.(net.Conn); ok {
-				logger.Debug("extracted connection from request context", "netConn", netConn)
+				logger.Debug("extracted connection from request context")
 				if tlsConn, ok := netConn.(*tls.Conn); ok {
-					logger.Debug("unwrapping tls.Conn", "netConn", netConn, "tlsConn", tlsConn)
+					logger.Debug("unwrapping tls.Conn")
 					netConn = tlsConn.NetConn()
 				}
 				if funnelConn, ok := netConn.(*ipn.FunnelConn); ok {
-					logger.Debug("request context connection is a FunnelConn", "netConn", netConn, "fc", funnelConn)
+					logger.Debug("request context connection is a FunnelConn")
 					realRemoteAddr := funnelConn.Src.String()
 					logger.Debug("changing request RemoteAddr", "from", r.RemoteAddr, "to", realRemoteAddr)
 					r.RemoteAddr = realRemoteAddr
