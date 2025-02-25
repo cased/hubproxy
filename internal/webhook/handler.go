@@ -150,8 +150,7 @@ func (h *Handler) VerifySignature(header http.Header, payload []byte) error {
 	h.logger.Debug("comparing signatures",
 		"provided", providedSignature,
 		"expected", expectedSignature,
-		"secret", h.secret,
-		"payload", string(payload))
+		"secret", h.secret)
 
 	if !hmac.Equal(providedBytes, expectedBytes) {
 		h.logger.Error("invalid signature",
