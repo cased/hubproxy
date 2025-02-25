@@ -227,7 +227,7 @@ func run() error {
 
 	webhookRouter.Use(middleware.RequestID)
 	if tsnetServer != nil {
-		webhookRouter.Use(security.TailscaleFunnelIP)
+		webhookRouter.Use(security.TailscaleFunnelIP(logger))
 	}
 	if viper.GetBool("trusted-proxy") {
 		webhookRouter.Use(middleware.RealIP)
