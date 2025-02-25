@@ -28,6 +28,12 @@ import (
 
 var configFile string
 
+type contextKey string
+
+const (
+	connectionContextKey contextKey = "connection"
+)
+
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "proxy",
@@ -238,7 +244,7 @@ func run() error {
 		IdleTimeout:  60 * time.Second,
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			// Store connection reference in context so requests can access it
-			return context.WithValue(ctx, "connection", c)
+			return context.WithValue(ctx, connectionContextKey, c)
 		},
 	}
 
