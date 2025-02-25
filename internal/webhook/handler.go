@@ -170,15 +170,16 @@ func (h *Handler) ValidateGitHubEvent(r *http.Request) error {
 		return fmt.Errorf("missing event type")
 	}
 
-	// Validate IP if enabled
-	ip := strings.Split(r.RemoteAddr, ":")[0]
-	if !h.ipValidator.IsGitHubIP(ip) {
-		// Only throw error if validation is enabled
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	if !h.ipValidator.IsGitHubIP(host) {
 		if h.validateIP {
-			h.logger.Error("request from non-GitHub IP", "ip", ip)
-			return fmt.Errorf("request from non-GitHub IP: %s", ip)
+			h.logger.Error("request from non-GitHub IP", "ip", host)
+			return fmt.Errorf("request from non-GitHub IP: %s", host)
 		} else {
-			h.logger.Warn("request from non-GitHub IP", "ip", ip)
+			h.logger.Warn("request from non-GitHub IP", "ip", host)
 		}
 	}
 
