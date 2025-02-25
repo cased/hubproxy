@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"hubproxy/internal/api"
+	"hubproxy/internal/security"
 	"hubproxy/internal/storage"
 	"hubproxy/internal/storage/factory"
 	"hubproxy/internal/webhook"
@@ -26,6 +27,12 @@ import (
 )
 
 var configFile string
+
+type contextKey string
+
+const (
+	connectionContextKey contextKey = "connection"
+)
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -181,9 +188,6 @@ func run() error {
 			return fmt.Errorf("failed to start Tailscale server: %w", err)
 		}
 
-		// Always trust Tailscale funnel proxy
-		viper.Set("trusted-proxy", true)
-
 		webhookHTTPClient = tsnetServer.HTTPClient()
 	}
 
@@ -222,8 +226,10 @@ func run() error {
 	webhookRouter := chi.NewRouter()
 
 	webhookRouter.Use(middleware.RequestID)
+	if tsnetServer != nil {
+		webhookRouter.Use(security.TailscaleFunnelIP)
+	}
 	if viper.GetBool("trusted-proxy") {
-		logger.Debug("installing RealIP middleware on webhook server")
 		webhookRouter.Use(middleware.RealIP)
 	}
 	webhookRouter.Use(middleware.Logger)
@@ -236,6 +242,10 @@ func run() error {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			// Store connection reference in context so requests can access it
+			return context.WithValue(ctx, connectionContextKey, c)
+		},
 	}
 
 	// Create API server
@@ -245,7 +255,6 @@ func run() error {
 
 	apiRouter.Use(middleware.RequestID)
 	if viper.GetBool("trusted-proxy") {
-		logger.Debug("installing RealIP middleware on API server")
 		apiRouter.Use(middleware.RealIP)
 	}
 	apiRouter.Use(middleware.Logger)

@@ -173,11 +173,6 @@ func (h *Handler) ValidateGitHubEvent(r *http.Request) error {
 	// Validate IP if enabled
 	ip := strings.Split(r.RemoteAddr, ":")[0]
 	if !h.ipValidator.IsGitHubIP(ip) {
-		h.logger.Debug("chi.middleware.RealIP info",
-			"RemoteAddr", r.RemoteAddr,
-			"True-Client-Ip", r.Header.Get("True-Client-Ip"),
-			"X-Forwarded-For", r.Header.Get("X-Forwarded-For"),
-			"X-Real-Ip", r.Header.Get("X-Real-Ip"))
 		// Only throw error if validation is enabled
 		if h.validateIP {
 			h.logger.Error("request from non-GitHub IP", "ip", ip)
