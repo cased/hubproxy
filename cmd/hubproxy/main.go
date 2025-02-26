@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"hubproxy/internal/api"
+	"hubproxy/internal/metrics"
 	"hubproxy/internal/security"
 	"hubproxy/internal/storage"
 	"hubproxy/internal/storage/factory"
@@ -219,6 +220,7 @@ func run() error {
 	var webhookLn net.Listener
 	webhookRouter := chi.NewRouter()
 
+	webhookRouter.Use(metrics.Middleware)
 	webhookRouter.Use(middleware.RequestID)
 	if tsnetServer != nil {
 		webhookRouter.Use(security.TailscaleFunnelIP(logger))
@@ -247,6 +249,7 @@ func run() error {
 	apiHandler := api.NewHandler(store, logger)
 	apiRouter := chi.NewRouter()
 
+	apiRouter.Use(metrics.Middleware)
 	apiRouter.Use(middleware.RequestID)
 	if viper.GetBool("trusted-proxy") {
 		apiRouter.Use(middleware.RealIP)
