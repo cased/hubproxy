@@ -36,6 +36,8 @@ func Middleware(next http.Handler) http.Handler {
 
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
+		next.ServeHTTP(ww, r)
+
 		routePattern := "unknown"
 		handlerName := "unknown"
 
@@ -46,8 +48,6 @@ func Middleware(next http.Handler) http.Handler {
 				handlerName = routePattern
 			}
 		}
-
-		next.ServeHTTP(ww, r)
 
 		duration := time.Since(start).Seconds()
 		statusCode := strconv.Itoa(ww.Status())
