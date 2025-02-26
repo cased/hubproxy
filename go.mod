@@ -17,7 +17,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
 	github.com/xo/dburl v0.23.3
-	golang.org/x/sync v0.10.0
+	golang.org/x/sync v0.11.0
 	tailscale.com v1.80.0
 )
 
