@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"hubproxy/internal/api"
+	"hubproxy/internal/graphql"
 	"hubproxy/internal/metrics"
 	"hubproxy/internal/security"
 	"hubproxy/internal/storage"
@@ -249,6 +250,12 @@ func run() error {
 	apiHandler := api.NewHandler(store, logger)
 	apiRouter := chi.NewRouter()
 
+	// Create GraphQL handler
+	graphqlHandler, err := graphql.NewHandler(store, logger)
+	if err != nil {
+		return fmt.Errorf("failed to create GraphQL handler: %w", err)
+	}
+
 	apiRouter.Use(metrics.Middleware)
 	apiRouter.Use(middleware.RequestID)
 	if viper.GetBool("trusted-proxy") {
@@ -263,6 +270,9 @@ func run() error {
 	apiRouter.Get("/api/events/{id}", apiHandler.ReplayEvent)
 	apiRouter.Get("/api/replay", apiHandler.ReplayRange)
 	apiRouter.Handle("/metrics", promhttp.Handler())
+	
+	// Add GraphQL endpoint
+	apiRouter.Handle("/graphql", graphqlHandler)
 
 	apiSrv := &http.Server{
 		Handler:      apiRouter,

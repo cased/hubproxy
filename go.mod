@@ -9,6 +9,8 @@ require (
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/google/uuid v1.6.0
+	github.com/graphql-go/graphql v0.8.1
+	github.com/graphql-go/handler v0.2.4
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.24
