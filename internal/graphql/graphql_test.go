@@ -171,7 +171,7 @@ func TestGraphQLQueries(t *testing.T) {
 	// Run test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := executeQuery(t, schema.schema, tc.query, nil)
+			result := executeQuery(schema.schema, tc.query, nil)
 			tc.validate(t, result)
 		})
 	}
@@ -203,7 +203,7 @@ func TestGraphQLMutations(t *testing.T) {
 				}
 			}
 		`
-		result := executeQuery(t, schema.schema, query, nil)
+		result := executeQuery(schema.schema, query, nil)
 		assert.Nil(t, result.Errors, "GraphQL mutation returned errors")
 
 		data := result.Data.(map[string]interface{})
@@ -277,7 +277,7 @@ func TestGraphQLHandler(t *testing.T) {
 }
 
 // Helper function to execute GraphQL queries
-func executeQuery(t *testing.T, schema graphql.Schema, query string, variables map[string]interface{}) *graphql.Result {
+func executeQuery(schema graphql.Schema, query string, variables map[string]interface{}) *graphql.Result {
 	result := graphql.Do(graphql.Params{
 		Schema:         schema,
 		RequestString:  query,
