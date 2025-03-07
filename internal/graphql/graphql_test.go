@@ -25,10 +25,10 @@ func TestGraphQLQueries(t *testing.T) {
 	// Setup test environment
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	store := testutil.SetupTestDB(t)
-	
+
 	// Add test data
 	setupTestData(t, store)
-	
+
 	schema, err := NewSchema(store, logger)
 	require.NoError(t, err)
 
@@ -55,11 +55,11 @@ func TestGraphQLQueries(t *testing.T) {
 			`,
 			validate: func(t *testing.T, result *graphql.Result) {
 				assert.Nil(t, result.Errors, "GraphQL query returned errors")
-				
+
 				data := result.Data.(map[string]interface{})
 				eventsData := data["events"].(map[string]interface{})
 				events := eventsData["events"].([]interface{})
-				
+
 				// Convert total to int for consistent comparison
 				var total int
 				switch v := eventsData["total"].(type) {
@@ -70,26 +70,26 @@ func TestGraphQLQueries(t *testing.T) {
 				default:
 					t.Fatalf("Unexpected type for total: %T", eventsData["total"])
 				}
-				
+
 				// Verify total count
 				assert.Equal(t, 2, total)
-				
+
 				// Verify we have 2 events
 				assert.Len(t, events, 2)
-				
+
 				// Sort events by ID to ensure consistent ordering for validation
 				sort.Slice(events, func(i, j int) bool {
-					return events[i].(map[string]interface{})["id"].(string) < 
+					return events[i].(map[string]interface{})["id"].(string) <
 						events[j].(map[string]interface{})["id"].(string)
 				})
-				
+
 				// Validate first event
 				event1 := events[0].(map[string]interface{})
 				assert.Equal(t, "test-event-1", event1["id"])
 				assert.Equal(t, "push", event1["type"])
 				assert.Equal(t, "test-repo/test", event1["repository"])
 				assert.Equal(t, "test-user", event1["sender"])
-				
+
 				// Validate second event
 				event2 := events[1].(map[string]interface{})
 				assert.Equal(t, "test-event-2", event2["id"])
@@ -112,10 +112,10 @@ func TestGraphQLQueries(t *testing.T) {
 			`,
 			validate: func(t *testing.T, result *graphql.Result) {
 				assert.Nil(t, result.Errors, "GraphQL query returned errors")
-				
+
 				data := result.Data.(map[string]interface{})
 				event := data["event"].(map[string]interface{})
-				
+
 				assert.Equal(t, "test-event-1", event["id"])
 				assert.Equal(t, "push", event["type"])
 				assert.Equal(t, "test-repo/test", event["repository"])
@@ -134,19 +134,19 @@ func TestGraphQLQueries(t *testing.T) {
 			`,
 			validate: func(t *testing.T, result *graphql.Result) {
 				assert.Nil(t, result.Errors, "GraphQL query returned errors")
-				
+
 				data := result.Data.(map[string]interface{})
 				stats := data["stats"].([]interface{})
-				
+
 				// Verify we have 2 stat entries
 				assert.Len(t, stats, 2)
-				
+
 				// Create a map of type to count for easier validation
 				statMap := make(map[string]int)
 				for _, stat := range stats {
 					s := stat.(map[string]interface{})
 					statType := s["type"].(string)
-					
+
 					// Handle different numeric types
 					var count int
 					switch v := s["count"].(type) {
@@ -157,10 +157,10 @@ func TestGraphQLQueries(t *testing.T) {
 					default:
 						t.Fatalf("Unexpected type for count: %T", s["count"])
 					}
-					
+
 					statMap[statType] = count
 				}
-				
+
 				// Validate counts
 				assert.Equal(t, 1, statMap["push"])
 				assert.Equal(t, 1, statMap["pull_request"])
@@ -181,10 +181,10 @@ func TestGraphQLMutations(t *testing.T) {
 	// Setup test environment
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	store := testutil.SetupTestDB(t)
-	
+
 	// Add test data
 	setupTestData(t, store)
-	
+
 	schema, err := NewSchema(store, logger)
 	require.NoError(t, err)
 
@@ -205,10 +205,10 @@ func TestGraphQLMutations(t *testing.T) {
 		`
 		result := executeQuery(t, schema.schema, query, nil)
 		assert.Nil(t, result.Errors, "GraphQL mutation returned errors")
-		
+
 		data := result.Data.(map[string]interface{})
 		replayEvent := data["replayEvent"].(map[string]interface{})
-		
+
 		// Handle different numeric types for replayedCount
 		var replayedCount int
 		switch v := replayEvent["replayedCount"].(type) {
@@ -219,16 +219,16 @@ func TestGraphQLMutations(t *testing.T) {
 		default:
 			t.Fatalf("Unexpected type for replayedCount: %T", replayEvent["replayedCount"])
 		}
-		
+
 		// Verify count
 		assert.Equal(t, 1, replayedCount)
-		
+
 		// Check the events
 		events := replayEvent["events"].([]interface{})
 		require.Len(t, events, 1, "Expected 1 replayed event")
-		
+
 		event := events[0].(map[string]interface{})
-		assert.True(t, strings.HasPrefix(event["id"].(string), "test-event-1-replay-"), 
+		assert.True(t, strings.HasPrefix(event["id"].(string), "test-event-1-replay-"),
 			"Replayed event ID should start with 'test-event-1-replay-'")
 		assert.Equal(t, "push", event["type"])
 		assert.Equal(t, "replayed", event["status"])
@@ -240,35 +240,35 @@ func TestGraphQLHandler(t *testing.T) {
 	// Setup test environment
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	store := testutil.SetupTestDB(t)
-	
+
 	// Add test data
 	setupTestData(t, store)
-	
+
 	// Create handler
 	handler, err := NewHandler(store, logger)
 	require.NoError(t, err)
-	
+
 	// Create test server
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	
+
 	// Test query
 	query := `{"query": "{ events { total events { id type } } }"}`
 	resp, err := http.Post(server.URL, "application/json", bytes.NewBufferString(query))
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	
+
 	// Check response
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	
+
 	var result map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	require.NoError(t, err)
-	
+
 	// Verify data exists and has no errors
 	assert.Contains(t, result, "data")
 	assert.NotContains(t, result, "errors")
-	
+
 	// Verify events data
 	data := result["data"].(map[string]interface{})
 	events := data["events"].(map[string]interface{})
@@ -291,7 +291,7 @@ func executeQuery(t *testing.T, schema graphql.Schema, query string, variables m
 func setupTestData(t *testing.T, store storage.Storage) {
 	// Add test events
 	now := time.Now()
-	
+
 	event1 := &storage.Event{
 		ID:         "test-event-1",
 		Type:       "push",
@@ -301,7 +301,7 @@ func setupTestData(t *testing.T, store storage.Storage) {
 		Repository: "test-repo/test",
 		Sender:     "test-user",
 	}
-	
+
 	event2 := &storage.Event{
 		ID:         "test-event-2",
 		Type:       "pull_request",
@@ -311,10 +311,10 @@ func setupTestData(t *testing.T, store storage.Storage) {
 		Repository: "test-repo/test",
 		Sender:     "test-user",
 	}
-	
+
 	err := store.StoreEvent(context.Background(), event1)
 	require.NoError(t, err)
-	
+
 	err = store.StoreEvent(context.Background(), event2)
 	require.NoError(t, err)
 }

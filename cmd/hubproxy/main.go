@@ -270,7 +270,7 @@ func run() error {
 	apiRouter.Get("/api/events/{id}", apiHandler.ReplayEvent)
 	apiRouter.Get("/api/replay", apiHandler.ReplayRange)
 	apiRouter.Handle("/metrics", promhttp.Handler())
-	
+
 	// Add GraphQL endpoint
 	apiRouter.Handle("/graphql", graphqlHandler)
 
