@@ -17,6 +17,8 @@ sql:
               type: "[]byte"
           - column: "events.created_at"
             go_type: "time.Time"
+          - column: "events.forwarded_at"
+            go_type: "time.Time"
           - column: "events.error"
             go_type: "string"
             nullable: true
