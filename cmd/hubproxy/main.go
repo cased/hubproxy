@@ -189,17 +189,22 @@ func run() error {
 	// Initialize storage if DB URI is provided
 	var store storage.Storage
 	dbURI := viper.GetString("db")
-	if dbURI != "" {
+	if dbURI == "" {
+		logger.Debug("No database URI provided, using in-memory SQLite database")
 		var err error
-		store, err = factory.NewStorageFromURI(dbURI)
-		if err != nil {
+		if store, err = factory.NewStorageFromURI("sqlite::memory:"); err != nil {
+			return fmt.Errorf("failed to initialize in-memory storage: %w", err)
+		}
+	} else {
+		var err error
+		if store, err = factory.NewStorageFromURI(dbURI); err != nil {
 			return fmt.Errorf("failed to initialize storage: %w", err)
 		}
-		defer store.Close()
+	}
+	defer store.Close()
 
-		if err := store.CreateSchema(ctx); err != nil {
-			return fmt.Errorf("failed to create schema: %w", err)
-		}
+	if err := store.CreateSchema(ctx); err != nil {
+		return fmt.Errorf("failed to create schema: %w", err)
 	}
 
 	metricsCollector := storage.NewDBMetricsCollector(store, logger)
