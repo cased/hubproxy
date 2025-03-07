@@ -107,16 +107,18 @@ func (s *Storage) StoreEvent(ctx context.Context, event *storage.Event) error {
 
 func (s *Storage) GetEvent(ctx context.Context, id string) (*storage.Event, error) {
 	query := s.builder.
-		Select("id", "type", "payload", "created_at", "error", "repository", "sender").
+		Select("id", "type", "headers", "payload", "created_at", "error", "repository", "sender").
 		From(s.tableName).
 		Where("id = ?", id).
 		Limit(1)
 
 	var event storage.Event
 	var payload []byte
+	var headers []byte
 	err := query.RunWith(s.db).QueryRowContext(ctx).Scan(
 		&event.ID,
 		&event.Type,
+		&headers,
 		&payload,
 		&event.CreatedAt,
 		&event.Error,
@@ -130,13 +132,14 @@ func (s *Storage) GetEvent(ctx context.Context, id string) (*storage.Event, erro
 		return nil, fmt.Errorf("scanning event: %w", err)
 	}
 
+	event.Headers = headers
 	event.Payload = json.RawMessage(payload)
 	return &event, nil
 }
 
 func (s *Storage) ListEvents(ctx context.Context, opts storage.QueryOptions) ([]*storage.Event, int, error) {
 	query := s.builder.
-		Select("id", "type", "payload", "created_at", "error", "repository", "sender").
+		Select("id", "type", "headers", "payload", "created_at", "error", "repository", "sender").
 		From(s.tableName)
 
 	query = s.addQueryConditions(query, opts)
@@ -169,9 +172,11 @@ func (s *Storage) ListEvents(ctx context.Context, opts storage.QueryOptions) ([]
 	for rows.Next() {
 		var event storage.Event
 		var payload []byte
+		var headers []byte
 		err := rows.Scan(
 			&event.ID,
 			&event.Type,
+			&headers,
 			&payload,
 			&event.CreatedAt,
 			&event.Error,
@@ -181,6 +186,7 @@ func (s *Storage) ListEvents(ctx context.Context, opts storage.QueryOptions) ([]
 		if err != nil {
 			return nil, 0, fmt.Errorf("scanning event: %w", err)
 		}
+		event.Headers = headers
 		event.Payload = json.RawMessage(payload)
 		events = append(events, &event)
 	}
