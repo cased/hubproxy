@@ -205,13 +205,23 @@ func run() error {
 	// Create webhook handler
 	webhookHandler := webhook.NewHandler(webhook.Options{
 		Secret:           viper.GetString("webhook-secret"),
-		TargetURL:        targetURL,
-		HTTPClient:       webhookHTTPClient,
 		Logger:           logger,
 		Store:            store,
 		ValidateIP:       viper.GetBool("validate-ip"),
 		MetricsCollector: metricsCollector,
 	})
+
+	// Forwarder requires target URL be set
+	if targetURL != "" {
+		webhookForwarder := webhook.NewWebhookForwarder(webhook.WebhookForwarderOptions{
+			TargetURL:        targetURL,
+			HTTPClient:       webhookHTTPClient,
+			Storage:          store,
+			MetricsCollector: metricsCollector,
+			Logger:           logger,
+		})
+		go webhookForwarder.StartForwarder(ctx)
+	}
 
 	// Create webhook server
 	var webhookLn net.Listener
