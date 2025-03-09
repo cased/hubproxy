@@ -41,39 +41,10 @@ func NewBaseStorage(db *sql.DB, dialect SQLDialect, tableName string) *BaseStora
 
 // StoreEvent stores a webhook event in the database
 func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) error {
-	// Check if event exists
-	exists := false
-	err := s.builder.Select("1").
-		From(s.tableName).
-		Where("id = ?", event.ID).
-		RunWith(s.db).
-		QueryRowContext(ctx).
-		Scan(&exists)
-	if err != nil && err != sql.ErrNoRows {
-		return fmt.Errorf("checking event existence: %w", err)
-	}
-
-	if exists {
-		// Update existing event
-		query := s.builder.Update(s.tableName).
-			Set("type", event.Type).
-			Set("payload", event.Payload).
-			Set("created_at", event.CreatedAt).
-			Set("status", event.Status).
-			Set("error", event.Error).
-			Set("repository", event.Repository).
-			Set("sender", event.Sender).
-			Where("id = ?", event.ID)
-
-		_, err = query.RunWith(s.db).ExecContext(ctx)
-		if err != nil {
-			return fmt.Errorf("updating event: %w", err)
-		}
-		return nil
-	}
-
-	// Insert new event
-	query := s.builder.Insert(s.tableName).
+	// Use the existing builder's placeholder format
+	query := s.builder.
+		Insert(s.tableName).
+		Prefix(s.dialect.InsertIgnoreSQL()).
 		Columns("id", "type", "payload", "created_at", "status", "error", "repository", "sender").
 		Values(
 			event.ID,
@@ -86,7 +57,12 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 			event.Sender,
 		)
 
-	_, err = query.RunWith(s.db).ExecContext(ctx)
+	// For PostgreSQL, we need to add ON CONFLICT clause
+	if _, ok := s.dialect.(*PostgresDialect); ok {
+		query = query.Suffix("ON CONFLICT DO NOTHING")
+	}
+
+	_, err := query.RunWith(s.db).ExecContext(ctx)
 	if err != nil {
 		return fmt.Errorf("inserting event: %w", err)
 	}

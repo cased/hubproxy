@@ -15,6 +15,9 @@ type SQLDialect interface {
 
 	// CreateTableSQL returns SQL for creating the events table
 	CreateTableSQL(tableName string) string
+
+	// InsertIgnoreSQL returns the SQL syntax for insert-ignore behavior
+	InsertIgnoreSQL() string
 }
 
 // BaseDialect provides common implementations
@@ -55,4 +58,9 @@ func (d *BaseDialect) CreateTableSQL(tableName string) string {
 		CREATE INDEX IF NOT EXISTS idx_sender ON %s (sender);
 	`, tableName, d.JSONType(), d.TimeType(),
 		tableName, tableName, tableName, tableName, tableName)
+}
+
+// InsertIgnoreSQL returns the SQL syntax for insert-ignore behavior
+func (d *BaseDialect) InsertIgnoreSQL() string {
+	return "INSERT"
 }
