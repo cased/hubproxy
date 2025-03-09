@@ -20,7 +20,7 @@ import (
 
 func TestAPIHandler(t *testing.T) {
 	// Initialize storage with clean test database
-	store := testutil.SetupTestDB(t)
+	store := testutil.NewTestDB(t)
 	defer store.Close()
 
 	ctx := context.Background()

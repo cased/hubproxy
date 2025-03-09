@@ -41,6 +41,38 @@ func NewBaseStorage(db *sql.DB, dialect SQLDialect, tableName string) *BaseStora
 
 // StoreEvent stores a webhook event in the database
 func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) error {
+	// Check if event exists
+	exists := false
+	err := s.builder.Select("1").
+		From(s.tableName).
+		Where("id = ?", event.ID).
+		RunWith(s.db).
+		QueryRowContext(ctx).
+		Scan(&exists)
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("checking event existence: %w", err)
+	}
+
+	if exists {
+		// Update existing event
+		query := s.builder.Update(s.tableName).
+			Set("type", event.Type).
+			Set("payload", event.Payload).
+			Set("created_at", event.CreatedAt).
+			Set("status", event.Status).
+			Set("error", event.Error).
+			Set("repository", event.Repository).
+			Set("sender", event.Sender).
+			Where("id = ?", event.ID)
+
+		_, err = query.RunWith(s.db).ExecContext(ctx)
+		if err != nil {
+			return fmt.Errorf("updating event: %w", err)
+		}
+		return nil
+	}
+
+	// Insert new event
 	query := s.builder.Insert(s.tableName).
 		Columns("id", "type", "payload", "created_at", "status", "error", "repository", "sender").
 		Values(
@@ -54,8 +86,11 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 			event.Sender,
 		)
 
-	_, err := query.RunWith(s.db).ExecContext(ctx)
-	return err
+	_, err = query.RunWith(s.db).ExecContext(ctx)
+	if err != nil {
+		return fmt.Errorf("inserting event: %w", err)
+	}
+	return nil
 }
 
 // ListEvents lists webhook events based on query options
@@ -99,7 +134,7 @@ func (s *BaseStorage) ListEvents(ctx context.Context, opts storage.QueryOptions)
 	// Scan results
 	var events []*storage.Event
 	for rows.Next() {
-		event := &storage.Event{}
+		var event storage.Event
 		scanErr := rows.Scan(
 			&event.ID,
 			&event.Type,
@@ -113,13 +148,13 @@ func (s *BaseStorage) ListEvents(ctx context.Context, opts storage.QueryOptions)
 		if scanErr != nil {
 			return nil, 0, fmt.Errorf("scanning row: %w", scanErr)
 		}
-		events = append(events, event)
+		events = append(events, &event)
 	}
 
 	// Get total count
 	total, err := s.CountEvents(ctx, opts)
 	if err != nil {
-		return nil, 0, fmt.Errorf("counting events: %w", err)
+		return nil, 0, fmt.Errorf("getting total count: %w", err)
 	}
 
 	return events, total, nil
@@ -190,7 +225,7 @@ func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, 
 	}
 
 	event := &storage.Event{}
-	err = rows.Scan(
+	scanErr := rows.Scan(
 		&event.ID,
 		&event.Type,
 		&event.Payload,
@@ -200,8 +235,8 @@ func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, 
 		&event.Repository,
 		&event.Sender,
 	)
-	if err != nil {
-		return nil, fmt.Errorf("scanning row: %w", err)
+	if scanErr != nil {
+		return nil, fmt.Errorf("scanning row: %w", scanErr)
 	}
 
 	return event, nil
