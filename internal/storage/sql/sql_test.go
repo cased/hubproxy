@@ -114,8 +114,8 @@ func TestConcurrentEventInsertion(t *testing.T) {
 		go func(status string) {
 			e := *event // Create a copy
 			e.Status = status
-			err := store.StoreEvent(ctx, &e)
-			require.NoError(t, err)
+			storeErr := store.StoreEvent(ctx, &e)
+			require.NoError(t, storeErr)
 			done <- true
 		}(fmt.Sprintf("status-%d", i))
 	}

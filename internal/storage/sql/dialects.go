@@ -39,7 +39,7 @@ func (d *PostgresDialect) TimeType() string {
 }
 
 func (d *PostgresDialect) InsertIgnoreSQL() string {
-	return "INSERT"  // Will be used with ON CONFLICT DO NOTHING
+	return "INSERT" //Will be used with ON CONFLICT DO NOTHING
 }
 
 // MySQLDialect implements SQLDialect for MySQL
