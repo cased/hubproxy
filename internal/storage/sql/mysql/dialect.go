@@ -40,15 +40,17 @@ func (d *Dialect) CreateTableSQL(tableName string) string {
 			type VARCHAR(50) NOT NULL,
 			payload %s NOT NULL,
 			created_at %s NOT NULL,
+			forwarded_at %s,
 			status VARCHAR(20) NOT NULL,
 			error TEXT,
 			repository VARCHAR(255),
 			sender VARCHAR(255),
 			INDEX idx_created_at (created_at),
+			INDEX idx_forwarded_at (forwarded_at),
 			INDEX idx_type (type),
 			INDEX idx_status (status),
 			INDEX idx_repository (repository),
 			INDEX idx_sender (sender)
 		)
-	`, tableName, d.JSONType(), d.TimeType())
+	`, tableName, d.JSONType(), d.TimeType(), d.TimeType())
 }
