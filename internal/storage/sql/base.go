@@ -44,7 +44,7 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 	// Use the existing builder's placeholder format
 	query := s.builder.
 		Insert(s.tableName).
-		Prefix(s.dialect.InsertIgnoreSQL()).
+		Options(s.dialect.InsertIgnoreSQL()).
 		Columns("id", "type", "payload", "created_at", "status", "error", "repository", "sender").
 		Values(
 			event.ID,
