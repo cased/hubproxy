@@ -44,7 +44,6 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 	// Use the existing builder's placeholder format
 	query := s.builder.
 		Insert(s.tableName).
-		Options(s.dialect.InsertIgnoreSQL()).
 		Columns("id", "type", "payload", "created_at", "status", "error", "repository", "sender").
 		Values(
 			event.ID,
@@ -57,9 +56,11 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 			event.Sender,
 		)
 
-	// For PostgreSQL, we need to add ON CONFLICT clause
+	// Add dialect-specific options
 	if _, ok := s.dialect.(*PostgresDialect); ok {
 		query = query.Suffix("ON CONFLICT DO NOTHING")
+	} else {
+		query = query.Prefix(s.dialect.InsertIgnoreSQL())
 	}
 
 	_, err := query.RunWith(s.db).ExecContext(ctx)
