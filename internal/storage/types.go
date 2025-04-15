@@ -10,6 +10,7 @@ import (
 type Event struct {
 	ID           string          `json:"id"`
 	Type         string          `json:"type"`
+	Headers      json.RawMessage `json:"headers"`
 	Payload      json.RawMessage `json:"payload"`
 	CreatedAt    time.Time       `json:"created_at"`
 	Status       string          `json:"status"`

@@ -20,6 +20,7 @@ func TestStorageImplementations(t *testing.T) {
 	event := &storage.Event{
 		Type:       "push",
 		Payload:    []byte(`{"ref": "refs/heads/main"}`),
+		Headers:    []byte(`{"X-GitHub-Event": "push", "X-GitHub-Delivery": "test-event-1"}`),
 		CreatedAt:  time.Now().UTC(),
 		Status:     "pending",
 		Error:      "", // Empty string for no error
@@ -35,6 +36,7 @@ func TestStorageImplementations(t *testing.T) {
 	pullRequestEvent := &storage.Event{
 		Type:       "pull_request",
 		Payload:    []byte(`{"action": "opened"}`),
+		Headers:    []byte(`{"X-GitHub-Event": "pull_request", "X-GitHub-Delivery": "test-event-2"}`),
 		CreatedAt:  time.Now().UTC(),
 		Status:     "completed",
 		Error:      "",

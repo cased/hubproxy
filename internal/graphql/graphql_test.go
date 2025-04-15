@@ -296,9 +296,10 @@ func setupTestData(t *testing.T, store storage.Storage) {
 		ID:         "test-event-1",
 		Type:       "push",
 		Payload:    []byte(`{"ref": "refs/heads/main"}`),
+		Headers:    []byte(`{"X-GitHub-Event": "push", "X-GitHub-Delivery": "test-event-1"}`),
 		CreatedAt:  now.Add(-1 * time.Hour),
-		Status:     "received",
-		Repository: "test-repo/test",
+		Status:     "completed",
+		Repository: "test/repo",
 		Sender:     "test-user",
 	}
 
@@ -306,9 +307,10 @@ func setupTestData(t *testing.T, store storage.Storage) {
 		ID:         "test-event-2",
 		Type:       "pull_request",
 		Payload:    []byte(`{"action": "opened"}`),
+		Headers:    []byte(`{"X-GitHub-Event": "pull_request", "X-GitHub-Delivery": "test-event-2"}`),
 		CreatedAt:  now,
-		Status:     "received",
-		Repository: "test-repo/test",
+		Status:     "pending",
+		Repository: "test/repo",
 		Sender:     "test-user",
 	}
 

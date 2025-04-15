@@ -44,11 +44,12 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 	// Use the existing builder's placeholder format
 	query := s.builder.
 		Insert(s.tableName).
-		Columns("id", "type", "payload", "created_at", "status", "error", "repository", "sender").
+		Columns("id", "type", "payload", "headers", "created_at", "status", "error", "repository", "sender").
 		Values(
 			event.ID,
 			event.Type,
 			event.Payload,
+			event.Headers,
 			event.CreatedAt,
 			event.Status,
 			event.Error,
@@ -77,7 +78,7 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 func (s *BaseStorage) ListEvents(ctx context.Context, opts storage.QueryOptions) ([]*storage.Event, int, error) {
 	// Build base query
 	query := s.builder.Select(
-		"id", "type", "payload", "created_at", "status", "error", "repository", "sender",
+		"id", "type", "payload", "headers", "created_at", "status", "error", "repository", "sender",
 	).From(s.tableName)
 
 	// Add conditions
@@ -119,6 +120,7 @@ func (s *BaseStorage) ListEvents(ctx context.Context, opts storage.QueryOptions)
 			&event.ID,
 			&event.Type,
 			&event.Payload,
+			&event.Headers,
 			&event.CreatedAt,
 			&event.Status,
 			&event.Error,
@@ -189,7 +191,7 @@ func (s *BaseStorage) GetStats(ctx context.Context, since time.Time) (map[string
 // GetEvent returns a single event by ID
 func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, error) {
 	query := s.builder.
-		Select("id", "type", "payload", "created_at", "status", "error", "repository", "sender").
+		Select("id", "type", "payload", "headers", "created_at", "status", "error", "repository", "sender").
 		From(s.tableName).
 		Where(sq.Eq{"id": id}).
 		Limit(1)
@@ -209,6 +211,7 @@ func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, 
 		&event.ID,
 		&event.Type,
 		&event.Payload,
+		&event.Headers,
 		&event.CreatedAt,
 		&event.Status,
 		&event.Error,
