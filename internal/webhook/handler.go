@@ -267,13 +267,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		headerJSON, err := json.Marshal(r.Header)
 		if err != nil {
 			h.logger.Error("Error marshaling headers", "error", err, "headers", fmt.Sprintf("%v", r.Header))
-			// Store error information in the headers field instead of empty object
-			errorInfo := map[string]interface{}{
-				"error":         "Failed to marshal headers",
-				"error_message": err.Error(),
-				"timestamp":     time.Now().Format(time.RFC3339),
-			}
-			headerJSON, _ = json.Marshal(errorInfo)
 		}
 
 		event := &storage.Event{
