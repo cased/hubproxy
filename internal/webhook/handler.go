@@ -58,45 +58,58 @@ var (
 )
 
 type Handler struct {
-	secret      string
-	targetURL   string
-	httpClient  *http.Client
-	logger      *slog.Logger
-	ipValidator *security.IPValidator
-	store       storage.Storage
+	secret           string
+	targetURL        string
+	httpClient       *http.Client
+	logger           *slog.Logger
+	ipValidator      *security.IPValidator
+	validateIP       bool
+	store            storage.Storage
+	metricsCollector *storage.DBMetricsCollector
 }
 
 type Options struct {
-	Secret     string
-	TargetURL  string
-	Logger     *slog.Logger
-	ValidateIP bool
-	Store      storage.Storage
+	Secret           string
+	TargetURL        string
+	HTTPClient       *http.Client
+	Logger           *slog.Logger
+	ValidateIP       bool
+	Store            storage.Storage
+	MetricsCollector *storage.DBMetricsCollector
 }
 
 func NewHandler(opts Options) *Handler {
-	var ipValidator *security.IPValidator
-	if opts.ValidateIP {
-		ipValidator = security.NewIPValidator(1*time.Hour, false) // Update IP ranges every hour
-	}
+	// Update IP ranges every hour
+	ipValidator := security.NewIPValidator(1*time.Hour, false)
 
-	transport := &http.Transport{}
+	httpClient := opts.HTTPClient
 
-	// Swap out HTTP client transport to use Unix socket
+	// Swap out HTTP client to use Unix socket
 	if strings.HasPrefix(opts.TargetURL, "unix://") {
 		socketPath := strings.TrimPrefix(opts.TargetURL, "unix://")
-		transport.DialContext = func(ctx context.Context, _, addr string) (net.Conn, error) {
-			return net.Dial("unix", socketPath)
+		httpClient = &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+					return net.Dial("unix", socketPath)
+				},
+			},
 		}
 	}
 
+	// Use default HTTP client if not provided
+	if httpClient == nil {
+		httpClient = &http.Client{}
+	}
+
 	return &Handler{
-		secret:      opts.Secret,
-		targetURL:   opts.TargetURL,
-		httpClient:  &http.Client{Transport: transport},
-		logger:      opts.Logger,
-		ipValidator: ipValidator,
-		store:       opts.Store,
+		secret:           opts.Secret,
+		targetURL:        opts.TargetURL,
+		httpClient:       httpClient,
+		logger:           opts.Logger,
+		ipValidator:      ipValidator,
+		validateIP:       opts.ValidateIP,
+		store:            opts.Store,
+		metricsCollector: opts.MetricsCollector,
 	}
 }
 
@@ -137,8 +150,7 @@ func (h *Handler) VerifySignature(header http.Header, payload []byte) error {
 	h.logger.Debug("comparing signatures",
 		"provided", providedSignature,
 		"expected", expectedSignature,
-		"secret", h.secret,
-		"payload", string(payload))
+		"secret", h.secret)
 
 	if !hmac.Equal(providedBytes, expectedBytes) {
 		h.logger.Error("invalid signature",
@@ -157,12 +169,16 @@ func (h *Handler) ValidateGitHubEvent(r *http.Request) error {
 		return fmt.Errorf("missing event type")
 	}
 
-	// Validate IP if enabled
-	if h.ipValidator != nil {
-		ip := strings.Split(r.RemoteAddr, ":")[0]
-		if !h.ipValidator.IsGitHubIP(ip) {
-			h.logger.Error("request from non-GitHub IP", "ip", ip)
-			return fmt.Errorf("request from non-GitHub IP: %s", ip)
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	if !h.ipValidator.IsGitHubIP(host) {
+		if h.validateIP {
+			h.logger.Error("request from non-GitHub IP", "ip", host)
+			return fmt.Errorf("request from non-GitHub IP: %s", host)
+		} else {
+			h.logger.Warn("request from non-GitHub IP", "ip", host)
 		}
 	}
 
@@ -278,6 +294,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			webhookStoredEvents.Inc()
 		}
+
+		h.metricsCollector.EnqueueGatherMetrics(r.Context())
 	}
 
 	if h.targetURL != "" {

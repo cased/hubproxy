@@ -44,6 +44,11 @@ func TestIPValidation(t *testing.T) {
 			expected: false,
 		},
 		{
+			name:     "Valid GitHub IPv6",
+			ip:       "2a0a:a440::1",
+			expected: true,
+		},
+		{
 			name:     "Non-GitHub IPv6 address",
 			ip:       "2001:db8::",
 			expected: false,

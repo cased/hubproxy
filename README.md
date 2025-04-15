@@ -31,6 +31,11 @@ HubProxy is a proxy for GitHub webhooks, built for people building with GitHub a
   - View event type statistics over time
   - Replay single events or event ranges
   - Filter and query capabilities for all operations
+- **GraphQL API**:
+  - Alternative to REST API with the same functionality
+  - Flexible querying with precise field selection
+  - Interactive GraphiQL and Playground interfaces for testing
+  - Support for complex queries and mutations in a single request
 - **Monitoring**: 
   - Provides metrics and logging for webhook delivery status and performance
   - Track event patterns and volume through API statistics
@@ -296,7 +301,11 @@ sqlite3 .cache/hubproxy.db
 
 ## API Reference
 
-HubProxy provides a REST API for querying and replaying webhook events. All API endpoints return JSON responses.
+HubProxy provides both REST and GraphQL APIs for querying and replaying webhook events.
+
+### REST API
+
+All REST API endpoints return JSON responses.
 
 ### List Events
 
@@ -469,15 +478,119 @@ Replays all webhook events within a specified time range.
 }
 ```
 
-**Notes:**
-- Each replayed event uses GitHub's original delivery ID to ensure proper tracing
-- The event is marked with a "replayed" status
-- The original event remains unchanged in the database
-- The webhook payload is preserved exactly as it was in the original event
-- Range replay has a default limit of 100 events (can be overridden with `limit` parameter)
+### GraphQL API
+
+HubProxy also provides a GraphQL API that mirrors the functionality of the REST API with more flexibility in querying.
+
+```http
+POST /graphql
+```
+
+The GraphQL endpoint also serves an interactive GraphiQL interface when accessed from a browser, allowing you to explore and test queries.
+
+#### Queries
+
+##### List Events
+
+```graphql
+query {
+  events(
+    type: "push",
+    repository: "owner/repo",
+    sender: "username",
+    status: "received",
+    since: "2024-02-01T00:00:00Z",
+    until: "2024-02-02T00:00:00Z",
+    limit: 10,
+    offset: 0
+  ) {
+    events {
+      id
+      type
+      payload
+      createdAt
+      status
+      repository
+      sender
+      replayedFrom
+      originalTime
+    }
+    total
+  }
+}
+```
+
+##### Get Single Event
+
+```graphql
+query {
+  event(id: "d2a1f85a-delivery-id-123") {
+    id
+    type
+    payload
+    createdAt
+    status
+    repository
+    sender
+  }
+}
+```
+
+##### Get Event Statistics
+
+```graphql
+query {
+  stats(since: "2024-02-01T00:00:00Z") {
+    type
+    count
+  }
+}
+```
+
+#### Mutations
+
+##### Replay Single Event
+
+```graphql
+mutation {
+  replayEvent(id: "d2a1f85a-delivery-id-123") {
+    replayedCount
+    events {
+      id
+      type
+      status
+      replayedFrom
+      originalTime
+    }
+  }
+}
+```
+
+##### Replay Events by Time Range
+
+```graphql
+mutation {
+  replayRange(
+    since: "2024-02-01T00:00:00Z",
+    until: "2024-02-02T00:00:00Z",
+    type: "push",
+    repository: "owner/repo",
+    sender: "username",
+    limit: 10
+  ) {
+    replayedCount
+    events {
+      id
+      type
+      status
+      replayedFrom
+      originalTime
+    }
+  }
+}
+```
 
 ### Prometheus Metrics
-
 ```
 GET /metrics
 ```
@@ -504,6 +617,9 @@ Sensitive configuration values should be provided through environment variables:
 Create a `config.yaml` file (see `config.example.yaml` for a template) with your desired settings.
 
 ```yaml
+# Read webhook secret from file
+webhook-secret: file:/run/credentials/hubproxy-webhook-secret
+
 # Target URL to forward webhooks to
 target-url: "http://your-service:8080/webhook"
 
@@ -514,8 +630,9 @@ log-level: info
 validate-ip: true
 
 # Tailscale configuration (optional)
-ts-authkey: ""
-ts-hostname: hubproxy
+# enable-tailscale: true
+# ts-authkey: ""
+# ts-hostname: hubproxy
 
 # Database configuration
 db: sqlite:hubproxy.db
@@ -538,6 +655,7 @@ Most configuration options can also be set via command-line flags:
 - `--target-url`: Target URL to forward webhooks to
 - `--log-level`: Log level (debug, info, warn, error)
 - `--validate-ip`: Validate that requests come from GitHub IPs
+- `--enable-tailscale`: Enable Tailscale integration
 - `--ts-authkey`: Tailscale auth key for tsnet
 - `--ts-hostname`: Tailscale hostname
 - `--db`: Database URI (e.g., sqlite:file.db, mysql://user:pass@host/db, postgresql://user:pass@host/db)
@@ -581,7 +699,7 @@ To use this feature:
 1. Generate an auth key from your [Tailscale Admin Console](https://login.tailscale.com/admin/settings/keys)
 2. Run hubproxy with the following flags:
    ```bash
-   hubproxy --ts-authkey=ts-abc123... --ts-hostname=hubproxy
+   hubproxy --enable-tailscale --ts-authkey=ts-abc123... --ts-hostname=hubproxy
    ```
 
 Your proxy will be accessible at `hubproxy.<tailnet>.ts.net`. You can customize the hostname using the `--ts-hostname` flag.
