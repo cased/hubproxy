@@ -50,7 +50,6 @@ func (h *Handler) ListEvents(w http.ResponseWriter, r *http.Request) {
 	// Parse other filters
 	opts.Repository = query.Get("repository")
 	opts.Sender = query.Get("sender")
-	opts.Status = query.Get("status")
 
 	// Parse since/until
 	if since := query.Get("since"); since != "" {
@@ -175,7 +174,6 @@ func (h *Handler) ReplayEvent(w http.ResponseWriter, r *http.Request) {
 		Payload:      event.Payload,
 		Headers:      event.Headers,
 		CreatedAt:    time.Now(),
-		Status:       "replayed",
 		Repository:   event.Repository,
 		Sender:       event.Sender,
 		ReplayedFrom: event.ID,
@@ -289,7 +287,6 @@ func (h *Handler) ReplayRange(w http.ResponseWriter, r *http.Request) {
 			Payload:      event.Payload,
 			Headers:      event.Headers,
 			CreatedAt:    time.Now(),
-			Status:       "replayed",
 			Repository:   event.Repository,
 			Sender:       event.Sender,
 			ReplayedFrom: event.ID,

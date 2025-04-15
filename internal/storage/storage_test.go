@@ -22,7 +22,6 @@ func TestStorageImplementations(t *testing.T) {
 		Payload:    []byte(`{"ref": "refs/heads/main"}`),
 		Headers:    []byte(`{"X-GitHub-Event": ["push"], "X-GitHub-Delivery": ["test-event-1"]}`),
 		CreatedAt:  time.Now().UTC(),
-		Status:     "pending",
 		Error:      "", // Empty string for no error
 		Repository: "test/repo",
 		Sender:     "test-user",
@@ -38,7 +37,6 @@ func TestStorageImplementations(t *testing.T) {
 		Payload:    []byte(`{"action": "opened"}`),
 		Headers:    []byte(`{"X-GitHub-Event": ["pull_request"], "X-GitHub-Delivery": ["test-event-2"]}`),
 		CreatedAt:  time.Now().UTC(),
-		Status:     "completed",
 		Error:      "",
 		Repository: "test/repo",
 		Sender:     "test-user",
@@ -56,7 +54,6 @@ func TestStorageImplementations(t *testing.T) {
 		Types:      []string{"push"},
 		Repository: "test/repo",
 		Sender:     "test-user",
-		Status:     "pending",
 		Limit:      10,
 		Offset:     0,
 	})
@@ -64,7 +61,7 @@ func TestStorageImplementations(t *testing.T) {
 	assert.Equal(t, 1, total)
 	assert.Len(t, events, 1)
 	assert.Equal(t, event.ID, events[0].ID)
-	assert.Equal(t, "pending", events[0].Status)
+
 	assert.Empty(t, events[0].Error)
 
 	// Test getting event type stats

@@ -34,7 +34,6 @@ func TestAPIHandler(t *testing.T) {
 			Type:       "push",
 			Payload:    []byte(`{"ref": "refs/heads/main"}`),
 			CreatedAt:  now.Add(-1 * time.Hour),
-			Status:     "completed",
 			Repository: "test/repo-1",
 			Sender:     "user-1",
 		},
@@ -43,7 +42,6 @@ func TestAPIHandler(t *testing.T) {
 			Type:       "pull_request",
 			Payload:    []byte(`{"action": "opened"}`),
 			CreatedAt:  now.Add(-2 * time.Hour),
-			Status:     "pending",
 			Repository: "test/repo-2",
 			Sender:     "user-2",
 		},
@@ -52,7 +50,6 @@ func TestAPIHandler(t *testing.T) {
 			Type:       "push",
 			Payload:    []byte(`{"ref": "refs/heads/feature"}`),
 			CreatedAt:  now,
-			Status:     "completed",
 			Repository: "test/repo-1",
 			Sender:     "user-1",
 		},
@@ -97,12 +94,6 @@ func TestAPIHandler(t *testing.T) {
 			{
 				name:           "Filter by sender",
 				query:          "?sender=user-2",
-				expectedCount:  1,
-				expectedStatus: http.StatusOK,
-			},
-			{
-				name:           "Filter by status",
-				query:          "?status=pending",
 				expectedCount:  1,
 				expectedStatus: http.StatusOK,
 			},
@@ -221,20 +212,20 @@ func TestAPIHandler(t *testing.T) {
 		// Create more test events for replay testing
 		moreEvents := []*storage.Event{
 			{
-				ID:         "test-event-4",
-				Type:       "issues",
-				Payload:    []byte(`{"action": "opened"}`),
-				CreatedAt:  now.Add(-30 * time.Minute),
-				Status:     "completed",
+				ID:        "test-event-4",
+				Type:      "issues",
+				Payload:   []byte(`{"action": "opened"}`),
+				CreatedAt: now.Add(-30 * time.Minute),
+
 				Repository: "test/repo-1",
 				Sender:     "user-1",
 			},
 			{
-				ID:         "test-event-5",
-				Type:       "pull_request",
-				Payload:    []byte(`{"action": "closed"}`),
-				CreatedAt:  now.Add(-45 * time.Minute),
-				Status:     "completed",
+				ID:        "test-event-5",
+				Type:      "pull_request",
+				Payload:   []byte(`{"action": "closed"}`),
+				CreatedAt: now.Add(-45 * time.Minute),
+
 				Repository: "test/repo-2",
 				Sender:     "user-2",
 			},
@@ -271,16 +262,11 @@ func TestAPIHandler(t *testing.T) {
 
 					// Verify replayed event fields
 					event := result.Events[0]
-					assert.Equal(t, "replayed", event.Status)
+
 					assert.True(t, strings.HasPrefix(event.ID, "test-event-1-replay-"))
 					assert.Equal(t, "test-event-1", event.ReplayedFrom)
 					assert.Equal(t, "push", event.Type)
 					assert.Equal(t, "test/repo-1", event.Repository)
-
-					// Verify original event is unchanged
-					orig, err := store.GetEvent(ctx, "test-event-1")
-					require.NoError(t, err)
-					assert.Equal(t, "completed", orig.Status)
 				},
 			},
 			{
@@ -301,7 +287,6 @@ func TestAPIHandler(t *testing.T) {
 
 					assert.Equal(t, 2, result.ReplayedCount) // Should find both pull_request events
 					for _, e := range result.Events {
-						assert.Equal(t, "replayed", e.Status)
 						assert.Equal(t, "pull_request", e.Type)
 						assert.Equal(t, "test/repo-2", e.Repository)
 						assert.Equal(t, "user-2", e.Sender)

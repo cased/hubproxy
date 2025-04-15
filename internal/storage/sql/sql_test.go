@@ -2,7 +2,6 @@ package sql_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -26,7 +25,6 @@ func TestDuplicateEventHandling(t *testing.T) {
 		Payload:    []byte(`{"ref": "refs/heads/main"}`),
 		Headers:    []byte(`{"X-GitHub-Event": ["push"], "X-GitHub-Delivery": ["test-event-1"]}`),
 		CreatedAt:  time.Now().UTC(),
-		Status:     "pending",
 		Repository: "test/repo",
 		Sender:     "test-user",
 	}
@@ -39,10 +37,9 @@ func TestDuplicateEventHandling(t *testing.T) {
 	stored, err := store.GetEvent(ctx, event.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored)
-	assert.Equal(t, "pending", stored.Status)
 
 	// Try to store the same event with different status
-	event.Status = "completed"
+
 	err = store.StoreEvent(ctx, event)
 	require.NoError(t, err)
 
@@ -50,7 +47,6 @@ func TestDuplicateEventHandling(t *testing.T) {
 	stored, err = store.GetEvent(ctx, event.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored)
-	assert.Equal(t, "pending", stored.Status, "Original event should not be modified")
 
 	// Count events to ensure no duplicates
 	count, err := store.CountEvents(ctx, storage.QueryOptions{})
@@ -71,7 +67,6 @@ func TestConcurrentEventInsertion(t *testing.T) {
 		Payload:    []byte(`{"ref": "refs/heads/main"}`),
 		Headers:    []byte(`{"X-GitHub-Event": ["push"], "X-GitHub-Delivery": ["concurrent-test-1"]}`),
 		CreatedAt:  time.Now().UTC(),
-		Status:     "pending",
 		Repository: "test/repo",
 		Sender:     "test-user",
 	}
@@ -83,13 +78,12 @@ func TestConcurrentEventInsertion(t *testing.T) {
 	// Simulate concurrent insertions with the same ID
 	done := make(chan bool)
 	for i := 0; i < 10; i++ {
-		go func(status string) {
+		go func() {
 			e := *event // Create a copy
-			e.Status = status
 			storeErr := store.StoreEvent(ctx, &e)
 			require.NoError(t, storeErr)
 			done <- true
-		}(fmt.Sprintf("status-%d", i))
+		}()
 	}
 
 	// Wait for all goroutines
@@ -106,7 +100,4 @@ func TestConcurrentEventInsertion(t *testing.T) {
 	stored, err := store.GetEvent(ctx, event.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored)
-	// The first insert succeeds, and subsequent inserts are ignored
-	// So the status should remain "pending"
-	assert.Equal(t, "pending", stored.Status, "Original event status should remain unchanged")
 }

@@ -274,7 +274,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Headers:    headerJSON,
 		Payload:    json.RawMessage(payload),
 		CreatedAt:  time.Now(),
-		Status:     "received",
 		Repository: "", // Extract from payload if needed
 		Sender:     "", // Extract from payload if needed
 	}
