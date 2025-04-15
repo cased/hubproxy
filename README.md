@@ -82,12 +82,6 @@ The system is designed to be horizontally scalable and can handle high webhook v
 
 ### Database
 
-HubProxy uses [SQLC](https://sqlc.dev/) to generate type-safe Go code from SQL queries. This provides:
-- Compile-time SQL validation
-- Type-safe query methods
-- Zero runtime reflection
-- Native support for JSON and custom types
-
 SQLite is used by default for development, but PostgreSQL or MySQL are recommended for production:
 ```bash
 # SQLite (default for development)
@@ -125,10 +119,6 @@ CREATE INDEX idx_repository ON events (repository);
 CREATE INDEX idx_sender ON events (sender);
 CREATE INDEX idx_replayed_from ON events (replayed_from);
 ```
-
-### Queries
-
-All SQL queries are defined in `internal/storage/sql/queries.sql` and are validated at compile-time by SQLC. 
 
 ### Query Options
 The storage interface supports filtering events by:
