@@ -11,7 +11,7 @@ require (
 	github.com/graphql-go/handler v0.2.4
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/lib/pq v1.10.9
-	github.com/mattn/go-sqlite3 v1.14.24
+	github.com/mattn/go-sqlite3 v1.14.27
 	github.com/prometheus/client_golang v1.22.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
