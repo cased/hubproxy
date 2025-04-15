@@ -44,6 +44,7 @@ func (d *BaseDialect) CreateTableSQL(tableName string) string {
 			payload %s NOT NULL,
 			headers %s,
 			created_at %s NOT NULL,
+			forwarded_at %s,
 			status VARCHAR(20) NOT NULL,
 			error TEXT,
 			repository VARCHAR(255),
@@ -52,11 +53,12 @@ func (d *BaseDialect) CreateTableSQL(tableName string) string {
 			original_time %s
 		);
 		CREATE INDEX IF NOT EXISTS idx_created_at ON %s (created_at);
+		CREATE INDEX IF NOT EXISTS idx_forwarded_at ON %s (forwarded_at);
 		CREATE INDEX IF NOT EXISTS idx_type ON %s (type);
 		CREATE INDEX IF NOT EXISTS idx_status ON %s (status);
 		CREATE INDEX IF NOT EXISTS idx_repository ON %s (repository);
 		CREATE INDEX IF NOT EXISTS idx_sender ON %s (sender);
 		CREATE INDEX IF NOT EXISTS idx_replayed_from ON %s (replayed_from);
-	`, tableName, d.JSONType(), d.JSONType(), d.TimeType(), d.TimeType(),
-		tableName, tableName, tableName, tableName, tableName, tableName)
+	`, tableName, d.JSONType(), d.JSONType(), d.TimeType(), d.TimeType(), d.TimeType(),
+		tableName, tableName, tableName, tableName, tableName, tableName, tableName)
 }
