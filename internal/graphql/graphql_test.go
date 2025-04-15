@@ -24,7 +24,7 @@ import (
 func TestGraphQLQueries(t *testing.T) {
 	// Setup test environment
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	store := testutil.SetupTestDB(t)
+	store := testutil.NewTestDB(t)
 
 	// Add test data
 	setupTestData(t, store)
@@ -180,7 +180,7 @@ func TestGraphQLQueries(t *testing.T) {
 func TestGraphQLMutations(t *testing.T) {
 	// Setup test environment
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	store := testutil.SetupTestDB(t)
+	store := testutil.NewTestDB(t)
 
 	// Add test data
 	setupTestData(t, store)
@@ -239,7 +239,7 @@ func TestGraphQLMutations(t *testing.T) {
 func TestGraphQLHandler(t *testing.T) {
 	// Setup test environment
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	store := testutil.SetupTestDB(t)
+	store := testutil.NewTestDB(t)
 
 	// Add test data
 	setupTestData(t, store)

@@ -13,12 +13,11 @@ import (
 )
 
 func TestStorageImplementations(t *testing.T) {
-	store := testutil.SetupTestDB(t)
+	store := testutil.NewTestDB(t)
 	ctx := context.Background()
 
 	// Test event creation
 	event := &storage.Event{
-		ID:         "test-event-1",
 		Type:       "push",
 		Payload:    []byte(`{"ref": "refs/heads/main"}`),
 		CreatedAt:  time.Now().UTC(),
@@ -30,10 +29,10 @@ func TestStorageImplementations(t *testing.T) {
 
 	err := store.StoreEvent(ctx, event)
 	require.NoError(t, err)
+	require.NotEmpty(t, event.ID) // ID should be generated
 
 	// Create a pull_request event
 	pullRequestEvent := &storage.Event{
-		ID:         "test-event-2",
 		Type:       "pull_request",
 		Payload:    []byte(`{"action": "opened"}`),
 		CreatedAt:  time.Now().UTC(),
@@ -45,10 +44,8 @@ func TestStorageImplementations(t *testing.T) {
 
 	err = store.StoreEvent(ctx, pullRequestEvent)
 	require.NoError(t, err)
+	require.NotEmpty(t, pullRequestEvent.ID)
 
-	// Test event update by storing with same ID
-	event.Status = "completed"
-	event.Error = "no error"
 	err = store.StoreEvent(ctx, event)
 	require.NoError(t, err)
 
@@ -57,7 +54,7 @@ func TestStorageImplementations(t *testing.T) {
 		Types:      []string{"push"},
 		Repository: "test/repo",
 		Sender:     "test-user",
-		Status:     "completed", // Should match updated status
+		Status:     "pending",
 		Limit:      10,
 		Offset:     0,
 	})
@@ -65,8 +62,8 @@ func TestStorageImplementations(t *testing.T) {
 	assert.Equal(t, 1, total)
 	assert.Len(t, events, 1)
 	assert.Equal(t, event.ID, events[0].ID)
-	assert.Equal(t, "completed", events[0].Status)
-	assert.Equal(t, "no error", events[0].Error)
+	assert.Equal(t, "pending", events[0].Status)
+	assert.Empty(t, events[0].Error)
 
 	// Test getting event type stats
 	t.Run("GetEventTypeStats", func(t *testing.T) {

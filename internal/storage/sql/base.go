@@ -41,7 +41,9 @@ func NewBaseStorage(db *sql.DB, dialect SQLDialect, tableName string) *BaseStora
 
 // StoreEvent stores a webhook event in the database
 func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) error {
-	query := s.builder.Insert(s.tableName).
+	// Use the existing builder's placeholder format
+	query := s.builder.
+		Insert(s.tableName).
 		Columns("id", "type", "payload", "created_at", "status", "error", "repository", "sender").
 		Values(
 			event.ID,
@@ -54,8 +56,21 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 			event.Sender,
 		)
 
+	if _, ok := s.dialect.(*SQLiteDialect); ok {
+		query = query.Options("OR IGNORE")
+	} else if _, ok := s.dialect.(*PostgresDialect); ok {
+		query = query.Suffix("ON CONFLICT DO NOTHING")
+	} else if _, ok := s.dialect.(*MySQLDialect); ok {
+		query = query.Options("IGNORE")
+	} else {
+		panic("unsupported dialect")
+	}
+
 	_, err := query.RunWith(s.db).ExecContext(ctx)
-	return err
+	if err != nil {
+		return fmt.Errorf("inserting event: %w", err)
+	}
+	return nil
 }
 
 // ListEvents lists webhook events based on query options
@@ -99,7 +114,7 @@ func (s *BaseStorage) ListEvents(ctx context.Context, opts storage.QueryOptions)
 	// Scan results
 	var events []*storage.Event
 	for rows.Next() {
-		event := &storage.Event{}
+		var event storage.Event
 		scanErr := rows.Scan(
 			&event.ID,
 			&event.Type,
@@ -113,13 +128,13 @@ func (s *BaseStorage) ListEvents(ctx context.Context, opts storage.QueryOptions)
 		if scanErr != nil {
 			return nil, 0, fmt.Errorf("scanning row: %w", scanErr)
 		}
-		events = append(events, event)
+		events = append(events, &event)
 	}
 
 	// Get total count
 	total, err := s.CountEvents(ctx, opts)
 	if err != nil {
-		return nil, 0, fmt.Errorf("counting events: %w", err)
+		return nil, 0, fmt.Errorf("getting total count: %w", err)
 	}
 
 	return events, total, nil
@@ -190,7 +205,7 @@ func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, 
 	}
 
 	event := &storage.Event{}
-	err = rows.Scan(
+	scanErr := rows.Scan(
 		&event.ID,
 		&event.Type,
 		&event.Payload,
@@ -200,8 +215,8 @@ func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, 
 		&event.Repository,
 		&event.Sender,
 	)
-	if err != nil {
-		return nil, fmt.Errorf("scanning row: %w", err)
+	if scanErr != nil {
+		return nil, fmt.Errorf("scanning row: %w", scanErr)
 	}
 
 	return event, nil
