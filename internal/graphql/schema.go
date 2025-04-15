@@ -32,6 +32,15 @@ func NewSchema(store storage.Storage, logger *slog.Logger) (*Schema, error) {
 			"type": &graphql.Field{
 				Type: graphql.String,
 			},
+			"headers": &graphql.Field{
+				Type: graphql.String,
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if event, ok := p.Source.(*storage.Event); ok {
+						return string(event.Headers), nil
+					}
+					return nil, nil
+				},
+			},
 			"payload": &graphql.Field{
 				Type: graphql.String,
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {

@@ -87,15 +87,23 @@ func TestGraphQLQueries(t *testing.T) {
 				event1 := events[0].(map[string]interface{})
 				assert.Equal(t, "test-event-1", event1["id"])
 				assert.Equal(t, "push", event1["type"])
-				assert.Equal(t, "test-repo/test", event1["repository"])
-				assert.Equal(t, "test-user", event1["sender"])
+				repo, ok := event1["repository"]
+				assert.True(t, ok, "Event should have repository field")
+				assert.Equal(t, "test/repo", repo, "Repository should match")
+				sender, ok := event1["sender"]
+				assert.True(t, ok, "Event should have sender field")
+				assert.Equal(t, "test-user", sender, "Sender should match")
 
 				// Validate second event
 				event2 := events[1].(map[string]interface{})
 				assert.Equal(t, "test-event-2", event2["id"])
 				assert.Equal(t, "pull_request", event2["type"])
-				assert.Equal(t, "test-repo/test", event2["repository"])
-				assert.Equal(t, "test-user", event2["sender"])
+				repo, ok = event2["repository"]
+				assert.True(t, ok, "Event should have repository field")
+				assert.Equal(t, "test/repo", repo, "Repository should match")
+				sender, ok = event2["sender"]
+				assert.True(t, ok, "Event should have sender field")
+				assert.Equal(t, "test-user", sender, "Sender should match")
 			},
 		},
 		{
@@ -118,8 +126,12 @@ func TestGraphQLQueries(t *testing.T) {
 
 				assert.Equal(t, "test-event-1", event["id"])
 				assert.Equal(t, "push", event["type"])
-				assert.Equal(t, "test-repo/test", event["repository"])
-				assert.Equal(t, "test-user", event["sender"])
+				repo, ok := event["repository"]
+				assert.True(t, ok, "Event should have repository field")
+				assert.Equal(t, "test/repo", repo, "Repository should match")
+				sender, ok := event["sender"]
+				assert.True(t, ok, "Event should have sender field")
+				assert.Equal(t, "test-user", sender, "Sender should match")
 			},
 		},
 		{
@@ -296,9 +308,10 @@ func setupTestData(t *testing.T, store storage.Storage) {
 		ID:         "test-event-1",
 		Type:       "push",
 		Payload:    []byte(`{"ref": "refs/heads/main"}`),
+		Headers:    []byte(`{"X-GitHub-Event": ["push"], "X-GitHub-Delivery": ["test-event-1"]}`),
 		CreatedAt:  now.Add(-1 * time.Hour),
-		Status:     "received",
-		Repository: "test-repo/test",
+		Status:     "completed",
+		Repository: "test/repo",
 		Sender:     "test-user",
 	}
 
@@ -306,9 +319,10 @@ func setupTestData(t *testing.T, store storage.Storage) {
 		ID:         "test-event-2",
 		Type:       "pull_request",
 		Payload:    []byte(`{"action": "opened"}`),
+		Headers:    []byte(`{"X-GitHub-Event": ["pull_request"], "X-GitHub-Delivery": ["test-event-2"]}`),
 		CreatedAt:  now,
-		Status:     "received",
-		Repository: "test-repo/test",
+		Status:     "pending",
+		Repository: "test/repo",
 		Sender:     "test-user",
 	}
 

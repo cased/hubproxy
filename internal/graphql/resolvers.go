@@ -151,6 +151,7 @@ func (s *Schema) resolveReplayEvent(p graphql.ResolveParams) (interface{}, error
 		ID:           fmt.Sprintf("%s-replay-%s", event.ID, uuid.New().String()), // Format: original-id-replay-uuid
 		Type:         event.Type,
 		Payload:      event.Payload,
+		Headers:      event.Headers,
 		CreatedAt:    time.Now(),
 		Status:       "replayed",
 		Repository:   event.Repository,
@@ -232,6 +233,7 @@ func (s *Schema) resolveReplayRange(p graphql.ResolveParams) (interface{}, error
 			ID:           fmt.Sprintf("%s-replay-%s", event.ID, uuid.New().String()), // Format: original-id-replay-uuid
 			Type:         event.Type,
 			Payload:      event.Payload,
+			Headers:      event.Headers,
 			CreatedAt:    time.Now(),
 			Status:       "replayed",
 			Repository:   event.Repository,

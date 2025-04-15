@@ -263,9 +263,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Store the webhook event
 	if h.store != nil {
+		// Convert headers to JSON
+		headerJSON, err := json.Marshal(r.Header)
+		if err != nil {
+			h.logger.Error("Error marshaling headers", "error", err, "headers", fmt.Sprintf("%v", r.Header))
+		}
+
 		event := &storage.Event{
 			ID:         r.Header.Get("X-GitHub-Delivery"), // Use GitHub's delivery ID
 			Type:       r.Header.Get("X-GitHub-Event"),
+			Headers:    headerJSON,
 			Payload:    json.RawMessage(payload),
 			CreatedAt:  time.Now(),
 			Status:     "received",

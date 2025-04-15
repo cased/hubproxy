@@ -173,6 +173,7 @@ func (h *Handler) ReplayEvent(w http.ResponseWriter, r *http.Request) {
 		ID:           fmt.Sprintf("%s-replay-%s", event.ID, uuid.New().String()), // Format: original-id-replay-uuid
 		Type:         event.Type,
 		Payload:      event.Payload,
+		Headers:      event.Headers,
 		CreatedAt:    time.Now(),
 		Status:       "replayed",
 		Repository:   event.Repository,
@@ -286,6 +287,7 @@ func (h *Handler) ReplayRange(w http.ResponseWriter, r *http.Request) {
 			ID:           fmt.Sprintf("%s-replay-%s", event.ID, uuid.New().String()), // Format: original-id-replay-uuid
 			Type:         event.Type,
 			Payload:      event.Payload,
+			Headers:      event.Headers,
 			CreatedAt:    time.Now(),
 			Status:       "replayed",
 			Repository:   event.Repository,
