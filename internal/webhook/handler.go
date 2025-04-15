@@ -275,7 +275,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			headerJSON, _ = json.Marshal(errorInfo)
 		}
-		
+
 		event := &storage.Event{
 			ID:         r.Header.Get("X-GitHub-Delivery"), // Use GitHub's delivery ID
 			Type:       r.Header.Get("X-GitHub-Event"),
