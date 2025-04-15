@@ -102,7 +102,7 @@ hubproxy --db "mysql://user:password@tcp(localhost:3306)/hubproxy"
 
 ### Schema
 
-The database schema is defined in `internal/storage/sql/schema.sql`. Here's a simplified version (actual types may vary by database):
+Here's a simplified version (actual types may vary by database):
 
 ```sql
 CREATE TABLE events (
