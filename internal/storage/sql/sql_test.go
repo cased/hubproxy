@@ -1,4 +1,4 @@
-package sql
+package sql_test
 
 import (
 	"context"
@@ -10,11 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"hubproxy/internal/storage"
+	"hubproxy/internal/storage/sql"
 )
 
 func TestDuplicateEventHandling(t *testing.T) {
 	ctx := context.Background()
-	store, err := New("sqlite::memory:")
+	store, err := sql.New("sqlite:file:test.db?mode=memory&cache=shared")
 	require.NoError(t, err)
 	defer store.Close()
 
@@ -58,7 +59,7 @@ func TestDuplicateEventHandling(t *testing.T) {
 
 func TestConcurrentEventInsertion(t *testing.T) {
 	ctx := context.Background()
-	store, err := New("sqlite::memory:")
+	store, err := sql.New("sqlite:file:test_concurrent.db?mode=memory&cache=shared")
 	require.NoError(t, err)
 	defer store.Close()
 
@@ -73,7 +74,11 @@ func TestConcurrentEventInsertion(t *testing.T) {
 		Sender:     "test-user",
 	}
 
-	// Simulate concurrent insertions
+	// Store the initial event
+	err = store.StoreEvent(ctx, event)
+	require.NoError(t, err)
+
+	// Simulate concurrent insertions with the same ID
 	done := make(chan bool)
 	for i := 0; i < 10; i++ {
 		go func(status string) {
@@ -95,9 +100,11 @@ func TestConcurrentEventInsertion(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "Should have exactly one event despite concurrent insertions")
 
-	// Verify the first event's status remained unchanged
+	// Verify the first event's status is unchanged (since duplicates are ignored)
 	stored, err := store.GetEvent(ctx, event.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored)
-	assert.Equal(t, "pending", stored.Status, "Original event status should be unchanged")
+	// The first insert succeeds, and subsequent inserts are ignored
+	// So the status should remain "pending"
+	assert.Equal(t, "pending", stored.Status, "Original event status should remain unchanged")
 }
