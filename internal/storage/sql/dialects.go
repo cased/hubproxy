@@ -17,10 +17,6 @@ func (d *SQLiteDialect) TimeType() string {
 	return "DATETIME"
 }
 
-func (d *SQLiteDialect) InsertIgnoreSQL() string {
-	return "INSERT OR IGNORE"
-}
-
 // PostgresDialect implements SQLDialect for PostgreSQL
 type PostgresDialect struct {
 	BaseDialect
@@ -38,10 +34,6 @@ func (d *PostgresDialect) TimeType() string {
 	return "TIMESTAMP WITH TIME ZONE"
 }
 
-func (d *PostgresDialect) InsertIgnoreSQL() string {
-	return "INSERT" //Will be used with ON CONFLICT DO NOTHING
-}
-
 // MySQLDialect implements SQLDialect for MySQL
 type MySQLDialect struct {
 	BaseDialect
@@ -57,8 +49,4 @@ func (d *MySQLDialect) JSONType() string {
 
 func (d *MySQLDialect) TimeType() string {
 	return "DATETIME"
-}
-
-func (d *MySQLDialect) InsertIgnoreSQL() string {
-	return "INSERT IGNORE"
 }

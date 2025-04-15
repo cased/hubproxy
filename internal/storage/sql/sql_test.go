@@ -12,41 +12,6 @@ import (
 	"hubproxy/internal/storage"
 )
 
-func TestInsertIgnoreBehavior(t *testing.T) {
-	tests := []struct {
-		name     string
-		dialect  SQLDialect
-		dbURL    string
-		expected string // expected SQL prefix
-	}{
-		{
-			name:     "SQLite",
-			dialect:  &SQLiteDialect{},
-			dbURL:    "sqlite::memory:",
-			expected: "INSERT OR IGNORE",
-		},
-		{
-			name:     "MySQL",
-			dialect:  &MySQLDialect{},
-			dbURL:    "mysql://root:root@localhost/test",
-			expected: "INSERT IGNORE",
-		},
-		{
-			name:     "PostgreSQL",
-			dialect:  &PostgresDialect{},
-			dbURL:    "postgres://postgres:postgres@localhost/test",
-			expected: "INSERT",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Verify dialect returns correct SQL
-			assert.Equal(t, tt.expected, tt.dialect.InsertIgnoreSQL())
-		})
-	}
-}
-
 func TestDuplicateEventHandling(t *testing.T) {
 	ctx := context.Background()
 	store, err := New("sqlite::memory:")

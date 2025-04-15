@@ -56,11 +56,14 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 			event.Sender,
 		)
 
-	// Add dialect-specific options
-	if _, ok := s.dialect.(*PostgresDialect); ok {
+	if _, ok := s.dialect.(*SQLiteDialect); ok {
+		query = query.Options("OR IGNORE")
+	} else if _, ok := s.dialect.(*PostgresDialect); ok {
 		query = query.Suffix("ON CONFLICT DO NOTHING")
+	} else if _, ok := s.dialect.(*MySQLDialect); ok {
+		query = query.Options("IGNORE")
 	} else {
-		query = query.Prefix(s.dialect.InsertIgnoreSQL())
+		panic("unsupported dialect")
 	}
 
 	_, err := query.RunWith(s.db).ExecContext(ctx)
