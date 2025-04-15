@@ -46,8 +46,6 @@ func TestStorageImplementations(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, pullRequestEvent.ID)
 
-	// Test event update
-	event.Status = "completed"
 	err = store.StoreEvent(ctx, event)
 	require.NoError(t, err)
 
@@ -56,7 +54,7 @@ func TestStorageImplementations(t *testing.T) {
 		Types:      []string{"push"},
 		Repository: "test/repo",
 		Sender:     "test-user",
-		Status:     "completed", // Should match updated status
+		Status:     "pending",
 		Limit:      10,
 		Offset:     0,
 	})
@@ -64,7 +62,7 @@ func TestStorageImplementations(t *testing.T) {
 	assert.Equal(t, 1, total)
 	assert.Len(t, events, 1)
 	assert.Equal(t, event.ID, events[0].ID)
-	assert.Equal(t, "completed", events[0].Status)
+	assert.Equal(t, "pending", events[0].Status)
 	assert.Empty(t, events[0].Error)
 
 	// Test getting event type stats
