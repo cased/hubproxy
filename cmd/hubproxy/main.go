@@ -95,7 +95,7 @@ and your target services.`,
 	flags.Bool("enable-tailscale", false, "Enable Tailscale integration")
 	flags.String("ts-authkey", "", "Tailscale auth key for tsnet")
 	flags.String("ts-hostname", "hubproxy", "Tailscale hostname (will be <hostname>.<tailnet>.ts.net)")
-	flags.String("db", "", "Database URI (e.g., sqlite:hubproxy.db, mysql://user:pass@host/db, postgres://user:pass@host/db)")
+	flags.String("db", "sqlite::memory:", "Database URI (e.g., sqlite:hubproxy.db, mysql://user:pass@host/db, postgres://user:pass@host/db)")
 	flags.Duration("metrics-interval", 0*time.Minute, "Interval at which to gather database metrics")
 	flags.Bool("test-mode", false, "Skip server startup for testing")
 
@@ -187,20 +187,16 @@ func run() error {
 		webhookHTTPClient = tsnetServer.HTTPClient()
 	}
 
-	// Initialize storage if DB URI is provided
-	var store storage.Storage
-	dbURI := viper.GetString("db")
-	if dbURI != "" {
-		var err error
-		store, err = sql.New(dbURI)
-		if err != nil {
-			return fmt.Errorf("failed to initialize storage: %w", err)
-		}
-		defer store.Close()
+	// Initialize storage
+	store, err := sql.New(viper.GetString("db"))
+	if err != nil {
+		return fmt.Errorf("failed to initialize storage: %w", err)
+	}
+	defer store.Close()
 
-		if err := store.CreateSchema(ctx); err != nil {
-			return fmt.Errorf("failed to create schema: %w", err)
-		}
+	err = store.CreateSchema(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create schema: %w", err)
 	}
 
 	metricsCollector := storage.NewDBMetricsCollector(store, logger)
