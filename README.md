@@ -77,7 +77,7 @@ The system is designed to be horizontally scalable and can handle high webhook v
 
 ### Prerequisites
 
-- Go 1.22 or later
+- Go 1.24 or later (current codebase uses Go 1.24.2)
 - SQLite (default), PostgreSQL 14+, or MySQL 8+ for event storage
 
 ### Database
@@ -103,12 +103,14 @@ CREATE TABLE events (
     id          VARCHAR(255) PRIMARY KEY,    -- GitHub delivery ID
     type        VARCHAR(50) NOT NULL,       -- GitHub event type
     payload     TEXT NOT NULL,              -- Event payload as JSON
+    headers     TEXT,                       -- HTTP headers as JSON
     created_at  TIMESTAMP NOT NULL,         -- Event creation time
     status      VARCHAR(20) NOT NULL,       -- Delivery status
     error       TEXT,                       -- Error message if failed
     repository  VARCHAR(255),               -- Repository name
     sender      VARCHAR(255),               -- Event sender
-    replayed_from VARCHAR(255)              -- Original event ID if this is a replay
+    replayed_from VARCHAR(255),             -- Original event ID if this is a replay
+    original_time TIMESTAMP                 -- Original event time for replays
 );
 
 -- Indexes for efficient querying
@@ -357,6 +359,11 @@ Lists webhook events with filtering and pagination.
     {
       "id": "d2a1f85a-delivery-id-123",
       "type": "push",
+      "headers": {
+        "X-GitHub-Event": ["push"],
+        "X-GitHub-Delivery": ["d2a1f85a-delivery-id-123"],
+        "X-Hub-Signature-256": ["sha256=..."]
+      },
       "payload": {
         "ref": "refs/heads/main",
         "before": "6113728f27ae82c7b1a177c8d03f9e96e0adf246",
