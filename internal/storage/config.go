@@ -8,13 +8,3 @@ type Config struct {
 	Username string
 	Password string
 }
-
-func DefaultConfig() Config {
-	return Config{
-		Host:     "localhost",
-		Port:     5433,
-		Database: "lacrosse",
-		Username: "lacrosse",
-		Password: "lacrosse",
-	}
-}
