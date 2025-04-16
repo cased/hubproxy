@@ -232,8 +232,3 @@ func NewSchema(store storage.Storage, logger *slog.Logger) (*Schema, error) {
 	s.schema = schema
 	return s, nil
 }
-
-// Schema returns the GraphQL schema
-func (s *Schema) Schema() graphql.Schema {
-	return s.schema
-}
