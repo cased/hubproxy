@@ -12,10 +12,6 @@ import (
 
 // resolveEvents handles the events query
 func (s *Schema) resolveEvents(p graphql.ResolveParams) (interface{}, error) {
-	if s.store == nil {
-		return nil, fmt.Errorf("storage not configured")
-	}
-
 	// Parse query parameters
 	opts := storage.QueryOptions{
 		Limit:  50, // Default limit
@@ -73,10 +69,6 @@ func (s *Schema) resolveEvents(p graphql.ResolveParams) (interface{}, error) {
 
 // resolveEvent handles the event query
 func (s *Schema) resolveEvent(p graphql.ResolveParams) (interface{}, error) {
-	if s.store == nil {
-		return nil, fmt.Errorf("storage not configured")
-	}
-
 	id, ok := p.Args["id"].(string)
 	if !ok || id == "" {
 		return nil, fmt.Errorf("invalid event ID")
@@ -97,10 +89,6 @@ func (s *Schema) resolveEvent(p graphql.ResolveParams) (interface{}, error) {
 
 // resolveStats handles the stats query
 func (s *Schema) resolveStats(p graphql.ResolveParams) (interface{}, error) {
-	if s.store == nil {
-		return nil, fmt.Errorf("storage not configured")
-	}
-
 	var since time.Time
 	if sinceArg, ok := p.Args["since"].(time.Time); ok {
 		since = sinceArg
@@ -126,10 +114,6 @@ func (s *Schema) resolveStats(p graphql.ResolveParams) (interface{}, error) {
 
 // resolveReplayEvent handles the replayEvent mutation
 func (s *Schema) resolveReplayEvent(p graphql.ResolveParams) (interface{}, error) {
-	if s.store == nil {
-		return nil, fmt.Errorf("storage not configured")
-	}
-
 	id, ok := p.Args["id"].(string)
 	if !ok || id == "" {
 		return nil, fmt.Errorf("invalid event ID")
@@ -174,10 +158,6 @@ func (s *Schema) resolveReplayEvent(p graphql.ResolveParams) (interface{}, error
 
 // resolveReplayRange handles the replayRange mutation
 func (s *Schema) resolveReplayRange(p graphql.ResolveParams) (interface{}, error) {
-	if s.store == nil {
-		return nil, fmt.Errorf("storage not configured")
-	}
-
 	// Parse query parameters for time range
 	opts := storage.QueryOptions{
 		Limit:  100, // Default limit for replay
