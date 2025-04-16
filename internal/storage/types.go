@@ -42,6 +42,9 @@ type Storage interface {
 	// StoreEvent stores a webhook event
 	StoreEvent(ctx context.Context, event *Event) error
 
+	// MarkForwarded marks an event as forwarded by setting the forwarded_at timestamp
+	MarkForwarded(ctx context.Context, id string) error
+
 	// ListEvents lists webhook events based on query options
 	ListEvents(ctx context.Context, opts QueryOptions) ([]*Event, int, error)
 

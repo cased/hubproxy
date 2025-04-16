@@ -310,6 +310,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		} else {
 			webhookForwardedRequests.Inc()
+			err := h.store.MarkForwarded(r.Context(), event.ID)
+			if err != nil {
+				h.logger.Error("error marking event as forwarded", "error", err)
+			}
 		}
 	}
 
