@@ -44,7 +44,7 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 	// Use the existing builder's placeholder format
 	query := s.builder.
 		Insert(s.tableName).
-		Columns("id", "type", "payload", "headers", "created_at", "status", "error", "repository", "sender").
+		Columns("id", "type", "payload", "headers", "created_at", "status", "error", "repository", "sender", "replayed_from", "original_time").
 		Values(
 			event.ID,
 			event.Type,
@@ -55,6 +55,8 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 			event.Error,
 			event.Repository,
 			event.Sender,
+			event.ReplayedFrom,
+			event.OriginalTime,
 		)
 
 	if _, ok := s.dialect.(*SQLiteDialect); ok {
@@ -78,7 +80,7 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 func (s *BaseStorage) ListEvents(ctx context.Context, opts storage.QueryOptions) ([]*storage.Event, int, error) {
 	// Build base query
 	query := s.builder.Select(
-		"id", "type", "payload", "headers", "created_at", "status", "error", "repository", "sender",
+		"id", "type", "payload", "headers", "created_at", "status", "error", "repository", "sender", "replayed_from", "original_time",
 	).From(s.tableName)
 
 	// Add conditions
@@ -126,6 +128,8 @@ func (s *BaseStorage) ListEvents(ctx context.Context, opts storage.QueryOptions)
 			&event.Error,
 			&event.Repository,
 			&event.Sender,
+			&event.ReplayedFrom,
+			&event.OriginalTime,
 		)
 		if scanErr != nil {
 			return nil, 0, fmt.Errorf("scanning row: %w", scanErr)
@@ -191,7 +195,7 @@ func (s *BaseStorage) GetStats(ctx context.Context, since time.Time) (map[string
 // GetEvent returns a single event by ID
 func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, error) {
 	query := s.builder.
-		Select("id", "type", "payload", "headers", "created_at", "status", "error", "repository", "sender").
+		Select("id", "type", "payload", "headers", "created_at", "status", "error", "repository", "sender", "replayed_from", "original_time").
 		From(s.tableName).
 		Where(sq.Eq{"id": id}).
 		Limit(1)
@@ -217,6 +221,8 @@ func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, 
 		&event.Error,
 		&event.Repository,
 		&event.Sender,
+		&event.ReplayedFrom,
+		&event.OriginalTime,
 	)
 	if scanErr != nil {
 		return nil, fmt.Errorf("scanning row: %w", scanErr)
