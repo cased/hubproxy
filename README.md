@@ -77,7 +77,7 @@ The system is designed to be horizontally scalable and can handle high webhook v
 
 ### Prerequisites
 
-- Go 1.22 or later
+- Go 1.24 or later (current codebase uses Go 1.24.2)
 - SQLite (default), PostgreSQL 14+, or MySQL 8+ for event storage
 
 ### Database
@@ -103,12 +103,14 @@ CREATE TABLE events (
     id          VARCHAR(255) PRIMARY KEY,    -- GitHub delivery ID
     type        VARCHAR(50) NOT NULL,       -- GitHub event type
     payload     TEXT NOT NULL,              -- Event payload as JSON
+    headers     TEXT,                       -- HTTP headers as JSON
     created_at  TIMESTAMP NOT NULL,         -- Event creation time
     status      VARCHAR(20) NOT NULL,       -- Delivery status
     error       TEXT,                       -- Error message if failed
     repository  VARCHAR(255),               -- Repository name
     sender      VARCHAR(255),               -- Event sender
-    replayed_from VARCHAR(255)              -- Original event ID if this is a replay
+    replayed_from VARCHAR(255),             -- Original event ID if this is a replay
+    original_time TIMESTAMP                 -- Original event time for replays
 );
 
 -- Indexes for efficient querying
@@ -293,6 +295,41 @@ sqlite3 .cache/hubproxy.db
 
 HubProxy provides both REST and GraphQL APIs for querying and replaying webhook events.
 
+### API Security
+
+The API server runs on a separate port (default: 8081) from the webhook handler (default: 8080). This separation allows for different security policies:
+
+- **Webhook Handler (port 8080)**: Should be publicly accessible to receive GitHub webhooks
+- **API Server (port 8081)**: Contains sensitive data and control functions, and should be secured
+
+**Security Recommendations:**
+
+1. **Network Isolation**: Keep the API port (8081) behind a firewall or internal network
+2. **Reverse Proxy**: If exposing the API externally, use a reverse proxy with authentication
+3. **Access Control**: Consider implementing one of these authentication methods:
+   - HTTP Basic Authentication via a reverse proxy
+   - API tokens with a tool like [Caddy](https://caddyserver.com/) or [Nginx](https://nginx.org/)
+   - VPN or [Tailscale](https://tailscale.com/) for secure network-level access
+4. **TLS Encryption**: Always use HTTPS for API communications
+5. **IP Restrictions**: Limit API access to specific IP ranges
+
+**Example Nginx Configuration with Basic Auth:**
+```nginx
+server {
+    listen 443 ssl;
+    server_name api.hubproxy.example.com;
+    
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+    
+    location / {
+        auth_basic "HubProxy API";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+        proxy_pass http://localhost:8081;
+    }
+}
+```
+
 ### REST API
 
 All REST API endpoints return JSON responses.
@@ -322,6 +359,11 @@ Lists webhook events with filtering and pagination.
     {
       "id": "d2a1f85a-delivery-id-123",
       "type": "push",
+      "headers": {
+        "X-GitHub-Event": ["push"],
+        "X-GitHub-Delivery": ["d2a1f85a-delivery-id-123"],
+        "X-Hub-Signature-256": ["sha256=..."]
+      },
       "payload": {
         "ref": "refs/heads/main",
         "before": "6113728f27ae82c7b1a177c8d03f9e96e0adf246",
