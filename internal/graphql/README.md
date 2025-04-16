@@ -16,7 +16,6 @@ query {
     type: String
     repository: String
     sender: String
-    status: String
     since: DateTime
     until: DateTime
     limit: Int
@@ -27,7 +26,6 @@ query {
       type
       payload
       createdAt
-      status
       error
       repository
       sender
@@ -48,7 +46,6 @@ query {
     type
     payload
     createdAt
-    status
     error
     repository
     sender
@@ -82,7 +79,6 @@ mutation {
       type
       payload
       createdAt
-      status
       repository
       sender
       replayedFrom
@@ -110,7 +106,6 @@ mutation {
       type
       payload
       createdAt
-      status
       repository
       sender
       replayedFrom

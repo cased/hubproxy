@@ -51,7 +51,6 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 			event.Payload,
 			event.Headers,
 			event.CreatedAt,
-			event.Status,
 			event.Error,
 			event.Repository,
 			event.Sender,
@@ -124,7 +123,6 @@ func (s *BaseStorage) ListEvents(ctx context.Context, opts storage.QueryOptions)
 			&event.Payload,
 			&event.Headers,
 			&event.CreatedAt,
-			&event.Status,
 			&event.Error,
 			&event.Repository,
 			&event.Sender,
@@ -217,7 +215,6 @@ func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, 
 		&event.Payload,
 		&event.Headers,
 		&event.CreatedAt,
-		&event.Status,
 		&event.Error,
 		&event.Repository,
 		&event.Sender,
@@ -242,9 +239,7 @@ func (s *BaseStorage) addQueryConditions(query sq.SelectBuilder, opts storage.Qu
 	if !opts.Until.IsZero() {
 		query = query.Where(sq.LtOrEq{"created_at": opts.Until})
 	}
-	if opts.Status != "" {
-		query = query.Where(sq.Eq{"status": opts.Status})
-	}
+
 	if opts.Repository != "" {
 		query = query.Where(sq.Eq{"repository": opts.Repository})
 	}

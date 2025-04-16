@@ -13,7 +13,6 @@ type Event struct {
 	Headers      json.RawMessage `json:"headers"`
 	Payload      json.RawMessage `json:"payload"`
 	CreatedAt    time.Time       `json:"created_at"`
-	Status       string          `json:"status"`
 	Error        string          `json:"error,omitempty"`
 	Repository   string          `json:"repository,omitempty"`
 	Sender       string          `json:"sender,omitempty"`
@@ -28,7 +27,6 @@ type QueryOptions struct {
 	Sender     string    // Sender to filter by
 	Since      time.Time // Start time for events
 	Until      time.Time // End time for events
-	Status     string    // Status to filter by
 	Limit      int       // Maximum number of events to return
 	Offset     int       // Offset for pagination
 }
@@ -43,6 +41,9 @@ type TypeStat struct {
 type Storage interface {
 	// StoreEvent stores a webhook event
 	StoreEvent(ctx context.Context, event *Event) error
+
+	// MarkForwarded marks an event as forwarded by setting the forwarded_at timestamp
+	MarkForwarded(ctx context.Context, id string) error
 
 	// ListEvents lists webhook events based on query options
 	ListEvents(ctx context.Context, opts QueryOptions) ([]*Event, int, error)

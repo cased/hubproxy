@@ -209,7 +209,6 @@ func TestGraphQLMutations(t *testing.T) {
 					events {
 						id
 						type
-						status
 						replayedFrom
 					}
 				}
@@ -243,7 +242,6 @@ func TestGraphQLMutations(t *testing.T) {
 		assert.True(t, strings.HasPrefix(event["id"].(string), "test-event-1-replay-"),
 			"Replayed event ID should start with 'test-event-1-replay-'")
 		assert.Equal(t, "push", event["type"])
-		assert.Equal(t, "replayed", event["status"])
 		assert.Equal(t, "test-event-1", event["replayedFrom"])
 	})
 }
@@ -310,7 +308,6 @@ func setupTestData(t *testing.T, store storage.Storage) {
 		Payload:    []byte(`{"ref": "refs/heads/main"}`),
 		Headers:    []byte(`{"X-GitHub-Event": ["push"], "X-GitHub-Delivery": ["test-event-1"]}`),
 		CreatedAt:  now.Add(-1 * time.Hour),
-		Status:     "completed",
 		Repository: "test/repo",
 		Sender:     "test-user",
 	}
@@ -321,7 +318,6 @@ func setupTestData(t *testing.T, store storage.Storage) {
 		Payload:    []byte(`{"action": "opened"}`),
 		Headers:    []byte(`{"X-GitHub-Event": ["pull_request"], "X-GitHub-Delivery": ["test-event-2"]}`),
 		CreatedAt:  now,
-		Status:     "pending",
 		Repository: "test/repo",
 		Sender:     "test-user",
 	}

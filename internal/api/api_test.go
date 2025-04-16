@@ -36,7 +36,6 @@ func TestAPIHandler(t *testing.T) {
 			Payload:    []byte(`{"ref": "refs/heads/main"}`),
 			Headers:    []byte(`{"X-GitHub-Event": ["push"], "X-GitHub-Delivery": ["test-event-1"]}`),
 			CreatedAt:  now.Add(-1 * time.Hour),
-			Status:     "completed",
 			Repository: "test/repo-1",
 			Sender:     "user-1",
 		},
@@ -46,7 +45,6 @@ func TestAPIHandler(t *testing.T) {
 			Payload:    []byte(`{"action": "opened"}`),
 			Headers:    []byte(`{"X-GitHub-Event": ["pull_request"], "X-GitHub-Delivery": ["test-event-2"]}`),
 			CreatedAt:  now.Add(-2 * time.Hour),
-			Status:     "pending",
 			Repository: "test/repo-2",
 			Sender:     "user-2",
 		},
@@ -56,7 +54,6 @@ func TestAPIHandler(t *testing.T) {
 			Payload:    []byte(`{"ref": "refs/heads/feature"}`),
 			Headers:    []byte(`{"X-GitHub-Event": ["push"], "X-GitHub-Delivery": ["test-event-3"]}`),
 			CreatedAt:  now,
-			Status:     "completed",
 			Repository: "test/repo-1",
 			Sender:     "user-1",
 		},
@@ -120,12 +117,6 @@ func TestAPIHandler(t *testing.T) {
 			{
 				name:           "Filter by sender",
 				query:          "?sender=user-2",
-				expectedCount:  1,
-				expectedStatus: http.StatusOK,
-			},
-			{
-				name:           "Filter by status",
-				query:          "?status=pending",
 				expectedCount:  1,
 				expectedStatus: http.StatusOK,
 			},
@@ -260,6 +251,10 @@ func TestAPIHandler(t *testing.T) {
 				Headers:    []byte(`{"X-GitHub-Event": ["pull_request"], "X-GitHub-Delivery": ["test-event-5"]}`),
 				CreatedAt:  now.Add(-45 * time.Minute),
 				Status:     "completed",
+				ID:        "test-event-5",
+				Type:      "pull_request",
+				Payload:   []byte(`{"action": "closed"}`),
+				CreatedAt: now.Add(-45 * time.Minute),
 				Repository: "test/repo-2",
 				Sender:     "user-2",
 			},
@@ -296,7 +291,7 @@ func TestAPIHandler(t *testing.T) {
 
 					// Verify replayed event fields
 					event := result.Events[0]
-					assert.Equal(t, "replayed", event.Status)
+
 					assert.True(t, strings.HasPrefix(event.ID, "test-event-1-replay-"))
 					assert.Equal(t, "test-event-1", event.ReplayedFrom)
 					assert.Equal(t, "push", event.Type)
@@ -309,6 +304,7 @@ func TestAPIHandler(t *testing.T) {
 					orig, err := store.GetEvent(ctx, "test-event-1")
 					require.NoError(t, err)
 					assert.Equal(t, "completed", orig.Status)
+
 				},
 			},
 			{
@@ -329,7 +325,6 @@ func TestAPIHandler(t *testing.T) {
 
 					assert.Equal(t, 2, result.ReplayedCount) // Should find both pull_request events
 					for _, e := range result.Events {
-						assert.Equal(t, "replayed", e.Status)
 						assert.Equal(t, "pull_request", e.Type)
 						assert.Equal(t, "test/repo-2", e.Repository)
 						assert.Equal(t, "user-2", e.Sender)

@@ -50,9 +50,8 @@ func main() {
 
 	// Query events
 	opts := storage.QueryOptions{
-		Limit:  *limit,
-		Since:  time.Now().Add(-*since),
-		Status: "completed",
+		Limit: *limit,
+		Since: time.Now().Add(-*since),
 	}
 	if *eventType != "" {
 		opts.Types = []string{*eventType}
@@ -68,12 +67,11 @@ func main() {
 
 	fmt.Printf("Found %d events (showing %d):\n", total, len(events))
 	for _, event := range events {
-		fmt.Printf("  %s: %s/%s (%s) [%s]\n",
+		fmt.Printf("  %s: %s/%s (%s)\n",
 			event.Type,
 			event.Repository,
 			event.ID,
 			event.CreatedAt.Format(time.RFC3339),
-			event.Status,
 		)
 	}
 }

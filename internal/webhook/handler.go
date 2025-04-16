@@ -274,7 +274,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Headers:    headerJSON,
 		Payload:    json.RawMessage(payload),
 		CreatedAt:  time.Now(),
-		Status:     "received",
 		Repository: "", // Extract from payload if needed
 		Sender:     "", // Extract from payload if needed
 	}
@@ -311,6 +310,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		} else {
 			webhookForwardedRequests.Inc()
+			err := h.store.MarkForwarded(r.Context(), event.ID)
+			if err != nil {
+				h.logger.Error("error marking event as forwarded", "error", err)
+			}
 		}
 	}
 
