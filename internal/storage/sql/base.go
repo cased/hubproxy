@@ -44,7 +44,7 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 	// Use the existing builder's placeholder format
 	query := s.builder.
 		Insert(s.tableName).
-		Columns("id", "type", "payload", "headers", "created_at", "status", "error", "repository", "sender", "replayed_from", "original_time").
+		Columns("id", "type", "payload", "headers", "created_at", "error", "repository", "sender", "replayed_from", "original_time", "forwarded_at").
 		Values(
 			event.ID,
 			event.Type,
@@ -56,6 +56,7 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 			event.Sender,
 			event.ReplayedFrom,
 			event.OriginalTime,
+			nil, // forwarded_at is initially null
 		)
 
 	if _, ok := s.dialect.(*SQLiteDialect); ok {
@@ -79,7 +80,7 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 func (s *BaseStorage) ListEvents(ctx context.Context, opts storage.QueryOptions) ([]*storage.Event, int, error) {
 	// Build base query
 	query := s.builder.Select(
-		"id", "type", "payload", "headers", "created_at", "status", "error", "repository", "sender", "replayed_from", "original_time",
+		"id", "type", "payload", "headers", "created_at", "error", "repository", "sender", "replayed_from", "original_time", "forwarded_at",
 	).From(s.tableName)
 
 	// Add conditions
@@ -128,6 +129,7 @@ func (s *BaseStorage) ListEvents(ctx context.Context, opts storage.QueryOptions)
 			&event.Sender,
 			&event.ReplayedFrom,
 			&event.OriginalTime,
+			&event.ForwardedAt,
 		)
 		if scanErr != nil {
 			return nil, 0, fmt.Errorf("scanning row: %w", scanErr)
@@ -193,7 +195,7 @@ func (s *BaseStorage) GetStats(ctx context.Context, since time.Time) (map[string
 // GetEvent returns a single event by ID
 func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, error) {
 	query := s.builder.
-		Select("id", "type", "payload", "headers", "created_at", "status", "error", "repository", "sender", "replayed_from", "original_time").
+		Select("id", "type", "payload", "headers", "created_at", "error", "repository", "sender", "replayed_from", "original_time", "forwarded_at").
 		From(s.tableName).
 		Where(sq.Eq{"id": id}).
 		Limit(1)
@@ -220,12 +222,28 @@ func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, 
 		&event.Sender,
 		&event.ReplayedFrom,
 		&event.OriginalTime,
+		&event.ForwardedAt,
 	)
 	if scanErr != nil {
 		return nil, fmt.Errorf("scanning row: %w", scanErr)
 	}
 
 	return event, nil
+}
+
+// MarkForwarded marks an event as forwarded by setting the forwarded_at timestamp
+func (s *BaseStorage) MarkForwarded(ctx context.Context, id string) error {
+	now := time.Now()
+	query := s.builder.
+		Update(s.tableName).
+		Set("forwarded_at", now).
+		Where(sq.Eq{"id": id})
+
+	_, err := query.RunWith(s.db).ExecContext(ctx)
+	if err != nil {
+		return fmt.Errorf("marking event as forwarded: %w", err)
+	}
+	return nil
 }
 
 // addQueryConditions adds WHERE conditions based on query options

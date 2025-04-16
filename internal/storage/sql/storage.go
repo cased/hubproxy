@@ -202,23 +202,7 @@ func (s *Storage) CountEvents(ctx context.Context, opts storage.QueryOptions) (i
 }
 
 func (s *Storage) MarkForwarded(ctx context.Context, id string) error {
-	query := s.builder.
-		Update(s.tableName).
-		Set("forwarded_at", time.Now()).
-		Where("id = ?", id)
-
-	result, err := query.RunWith(s.db).ExecContext(ctx)
-	if err != nil {
-		return fmt.Errorf("marking event as forwarded: %w", err)
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("getting rows affected: %w", err)
-	}
-	if rows == 0 {
-		return fmt.Errorf("event not found")
-	}
-	return nil
+	return s.BaseStorage.MarkForwarded(ctx, id)
 }
 
 func (s *Storage) GetStats(ctx context.Context, since time.Time) (map[string]int64, error) {

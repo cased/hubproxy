@@ -240,7 +240,6 @@ func TestAPIHandler(t *testing.T) {
 				Payload:    []byte(`{"action": "opened"}`),
 				Headers:    []byte(`{"X-GitHub-Event": ["issues"], "X-GitHub-Delivery": ["test-event-4"]}`),
 				CreatedAt:  now.Add(-30 * time.Minute),
-				Status:     "completed",
 				Repository: "test/repo-1",
 				Sender:     "user-1",
 			},
@@ -250,11 +249,6 @@ func TestAPIHandler(t *testing.T) {
 				Payload:    []byte(`{"action": "closed"}`),
 				Headers:    []byte(`{"X-GitHub-Event": ["pull_request"], "X-GitHub-Delivery": ["test-event-5"]}`),
 				CreatedAt:  now.Add(-45 * time.Minute),
-				Status:     "completed",
-				ID:        "test-event-5",
-				Type:      "pull_request",
-				Payload:   []byte(`{"action": "closed"}`),
-				CreatedAt: now.Add(-45 * time.Minute),
 				Repository: "test/repo-2",
 				Sender:     "user-2",
 			},
@@ -299,12 +293,6 @@ func TestAPIHandler(t *testing.T) {
 					
 					// When testing with SQLite, the Headers field might not be properly stored/retrieved
 					// This is a known limitation of the test environment, but the real implementation works correctly
-
-					// Verify original event is unchanged
-					orig, err := store.GetEvent(ctx, "test-event-1")
-					require.NoError(t, err)
-					assert.Equal(t, "completed", orig.Status)
-
 				},
 			},
 			{

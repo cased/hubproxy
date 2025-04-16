@@ -13,6 +13,7 @@ type Event struct {
 	Headers      json.RawMessage `json:"headers"`
 	Payload      json.RawMessage `json:"payload"`
 	CreatedAt    time.Time       `json:"created_at"`
+	ForwardedAt  *time.Time      `json:"forwarded_at,omitempty"` // Time when the event was forwarded to the target
 	Error        string          `json:"error,omitempty"`
 	Repository   string          `json:"repository,omitempty"`
 	Sender       string          `json:"sender,omitempty"`
@@ -39,27 +40,12 @@ type TypeStat struct {
 
 // Storage defines the interface for event storage
 type Storage interface {
-	// StoreEvent stores a webhook event
 	StoreEvent(ctx context.Context, event *Event) error
-
-	// MarkForwarded marks an event as forwarded by setting the forwarded_at timestamp
-	MarkForwarded(ctx context.Context, id string) error
-
-	// ListEvents lists webhook events based on query options
-	ListEvents(ctx context.Context, opts QueryOptions) ([]*Event, int, error)
-
-	// CountEvents returns the total number of events matching the given options
-	CountEvents(ctx context.Context, opts QueryOptions) (int, error)
-
-	// GetStats returns event type statistics
-	GetStats(ctx context.Context, since time.Time) (map[string]int64, error)
-
-	// GetEvent returns a single event by ID
 	GetEvent(ctx context.Context, id string) (*Event, error)
-
-	// CreateSchema creates the database schema
+	ListEvents(ctx context.Context, opts QueryOptions) ([]*Event, int, error)
+	CountEvents(ctx context.Context, opts QueryOptions) (int, error)
+	GetStats(ctx context.Context, since time.Time) (map[string]int64, error)
+	MarkForwarded(ctx context.Context, id string) error
 	CreateSchema(ctx context.Context) error
-
-	// Close closes the storage
 	Close() error
 }
