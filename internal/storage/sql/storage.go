@@ -107,7 +107,7 @@ func (s *Storage) StoreEvent(ctx context.Context, event *storage.Event) error {
 
 func (s *Storage) GetEvent(ctx context.Context, id string) (*storage.Event, error) {
 	query := s.builder.
-		Select("id", "type", "payload", "created_at", "status", "error", "repository", "sender").
+		Select("id", "type", "payload", "created_at", "error", "repository", "sender").
 		From(s.tableName).
 		Where("id = ?", id).
 		Limit(1)
@@ -119,7 +119,6 @@ func (s *Storage) GetEvent(ctx context.Context, id string) (*storage.Event, erro
 		&event.Type,
 		&payload,
 		&event.CreatedAt,
-		&event.Status,
 		&event.Error,
 		&event.Repository,
 		&event.Sender,
@@ -137,7 +136,7 @@ func (s *Storage) GetEvent(ctx context.Context, id string) (*storage.Event, erro
 
 func (s *Storage) ListEvents(ctx context.Context, opts storage.QueryOptions) ([]*storage.Event, int, error) {
 	query := s.builder.
-		Select("id", "type", "payload", "created_at", "status", "error", "repository", "sender").
+		Select("id", "type", "payload", "created_at", "error", "repository", "sender").
 		From(s.tableName)
 
 	query = s.addQueryConditions(query, opts)
@@ -175,7 +174,6 @@ func (s *Storage) ListEvents(ctx context.Context, opts storage.QueryOptions) ([]
 			&event.Type,
 			&payload,
 			&event.CreatedAt,
-			&event.Status,
 			&event.Error,
 			&event.Repository,
 			&event.Sender,
@@ -203,23 +201,16 @@ func (s *Storage) CountEvents(ctx context.Context, opts storage.QueryOptions) (i
 	return count, nil
 }
 
-func (s *Storage) UpdateEventStatus(ctx context.Context, id string, status string, err error) error {
-	var errStr string
-	if err != nil {
-		errStr = err.Error()
-	}
-
+func (s *Storage) MarkForwarded(ctx context.Context, id string) error {
 	query := s.builder.
 		Update(s.tableName).
-		Set("status", status).
-		Set("error", errStr).
+		Set("forwarded_at", time.Now()).
 		Where("id = ?", id)
 
 	result, err := query.RunWith(s.db).ExecContext(ctx)
 	if err != nil {
-		return fmt.Errorf("updating event status: %w", err)
+		return fmt.Errorf("marking event as forwarded: %w", err)
 	}
-
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("getting rows affected: %w", err)
@@ -227,7 +218,6 @@ func (s *Storage) UpdateEventStatus(ctx context.Context, id string, status strin
 	if rows == 0 {
 		return fmt.Errorf("event not found")
 	}
-
 	return nil
 }
 

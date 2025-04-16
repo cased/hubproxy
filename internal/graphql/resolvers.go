@@ -32,10 +32,6 @@ func (s *Schema) resolveEvents(p graphql.ResolveParams) (interface{}, error) {
 		opts.Sender = sender
 	}
 
-	if status, ok := p.Args["status"].(string); ok && status != "" {
-		opts.Status = status
-	}
-
 	// Parse since/until
 	if since, ok := p.Args["since"].(time.Time); ok {
 		opts.Since = since
@@ -137,7 +133,6 @@ func (s *Schema) resolveReplayEvent(p graphql.ResolveParams) (interface{}, error
 		Payload:      event.Payload,
 		Headers:      event.Headers,
 		CreatedAt:    time.Now(),
-		Status:       "replayed",
 		Repository:   event.Repository,
 		Sender:       event.Sender,
 		ReplayedFrom: event.ID,
@@ -215,7 +210,6 @@ func (s *Schema) resolveReplayRange(p graphql.ResolveParams) (interface{}, error
 			Payload:      event.Payload,
 			Headers:      event.Headers,
 			CreatedAt:    time.Now(),
-			Status:       "replayed",
 			Repository:   event.Repository,
 			Sender:       event.Sender,
 			ReplayedFrom: event.ID,
