@@ -254,56 +254,54 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	if err := h.VerifySignature(r.Header, payload); err != nil {
+	err = h.VerifySignature(r.Header, payload)
+	if err != nil {
 		h.logger.Error("signature verification error", "error", err)
 		webhookSignatureErrors.Inc()
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-	// Store the webhook event
-	if h.store != nil {
-		// Convert headers to JSON
-		headerJSON, err := json.Marshal(r.Header)
-		if err != nil {
-			h.logger.Error("Error marshaling headers", "error", err, "headers", fmt.Sprintf("%v", r.Header))
-		}
-
-		event := &storage.Event{
-			ID:         r.Header.Get("X-GitHub-Delivery"), // Use GitHub's delivery ID
-			Type:       r.Header.Get("X-GitHub-Event"),
-			Headers:    headerJSON,
-			Payload:    json.RawMessage(payload),
-			CreatedAt:  time.Now(),
-			Status:     "received",
-			Repository: "", // Extract from payload if needed
-			Sender:     "", // Extract from payload if needed
-		}
-
-		// Extract repository and sender from payload
-		var payloadMap map[string]interface{}
-		if err := json.Unmarshal(payload, &payloadMap); err == nil {
-			if repo, ok := payloadMap["repository"].(map[string]interface{}); ok {
-				if fullName, ok := repo["full_name"].(string); ok {
-					event.Repository = fullName
-				}
-			}
-			if sender, ok := payloadMap["sender"].(map[string]interface{}); ok {
-				if login, ok := sender["login"].(string); ok {
-					event.Sender = login
-				}
-			}
-		}
-
-		if err := h.store.StoreEvent(r.Context(), event); err != nil {
-			h.logger.Error("error storing event", "error", err)
-			// Continue even if storage fails
-		} else {
-			webhookStoredEvents.Inc()
-		}
-
-		h.metricsCollector.EnqueueGatherMetrics(r.Context())
+	// Convert headers to JSON
+	headerJSON, err := json.Marshal(r.Header)
+	if err != nil {
+		h.logger.Error("Error marshaling headers", "error", err, "headers", fmt.Sprintf("%v", r.Header))
 	}
+
+	event := &storage.Event{
+		ID:         r.Header.Get("X-GitHub-Delivery"), // Use GitHub's delivery ID
+		Type:       r.Header.Get("X-GitHub-Event"),
+		Headers:    headerJSON,
+		Payload:    json.RawMessage(payload),
+		CreatedAt:  time.Now(),
+		Status:     "received",
+		Repository: "", // Extract from payload if needed
+		Sender:     "", // Extract from payload if needed
+	}
+
+	// Extract repository and sender from payload
+	var payloadMap map[string]interface{}
+	if err := json.Unmarshal(payload, &payloadMap); err == nil {
+		if repo, ok := payloadMap["repository"].(map[string]interface{}); ok {
+			if fullName, ok := repo["full_name"].(string); ok {
+				event.Repository = fullName
+			}
+		}
+		if sender, ok := payloadMap["sender"].(map[string]interface{}); ok {
+			if login, ok := sender["login"].(string); ok {
+				event.Sender = login
+			}
+		}
+	}
+
+	if err := h.store.StoreEvent(r.Context(), event); err != nil {
+		h.logger.Error("error storing event", "error", err)
+		// Continue even if storage fails
+	} else {
+		webhookStoredEvents.Inc()
+	}
+
+	h.metricsCollector.EnqueueGatherMetrics(r.Context())
 
 	if h.targetURL != "" {
 		if err := h.Forward(payload, r.Header); err != nil {
