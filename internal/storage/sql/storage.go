@@ -201,33 +201,6 @@ func (s *Storage) CountEvents(ctx context.Context, opts storage.QueryOptions) (i
 	return count, nil
 }
 
-func (s *Storage) UpdateEventStatus(ctx context.Context, id string, status string, err error) error {
-	var errStr string
-	if err != nil {
-		errStr = err.Error()
-	}
-
-	query := s.builder.
-		Update(s.tableName).
-		Set("error", errStr).
-		Where("id = ?", id)
-
-	result, err := query.RunWith(s.db).ExecContext(ctx)
-	if err != nil {
-		return fmt.Errorf("updating event status: %w", err)
-	}
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("getting rows affected: %w", err)
-	}
-	if rows == 0 {
-		return fmt.Errorf("event not found")
-	}
-
-	return nil
-}
-
 func (s *Storage) MarkForwarded(ctx context.Context, id string) error {
 	query := s.builder.
 		Update(s.tableName).
