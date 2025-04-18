@@ -15,13 +15,13 @@ HubProxy is a proxy for GitHub webhooks, built for people building with GitHub a
     1. The original event (unchanged)
     2. A new event with:
        - Same payload as original
-       - `status="replayed"`
+       - Forwarding timestamp will be null
        - ID format: `original-id-replay-uuid`
        - Original event ID stored in `replayed_from`
   - Range replay has a default limit of 100 events (override with `limit`)
   - Filter range replays by `type`, `repository`, and `sender`
   - Response includes `replayed_count` and list of replayed events
-  - Filter events by status using `GET /api/events?status=[received|replayed|completed|pending]`
+  - Filter events by forwarding status using `GET /api/events?forwarded=[true|false]`
 - **Event Filtering**: 
   - Filter events by type, repository, sender, and time range
   - Query historical events through a RESTful API
@@ -104,19 +104,19 @@ CREATE TABLE events (
     type        VARCHAR(50) NOT NULL,       -- GitHub event type
     payload     TEXT NOT NULL,              -- Event payload as JSON
     headers     TEXT,                       -- HTTP headers as JSON
-    created_at  TIMESTAMP NOT NULL,         -- Event creation time
-    status      VARCHAR(20) NOT NULL,       -- Delivery status
-    error       TEXT,                       -- Error message if failed
-    repository  VARCHAR(255),               -- Repository name
-    sender      VARCHAR(255),               -- Event sender
+    created_at  TIMESTAMP NOT NULL,         -- When the event was received
+    forwarded_at TIMESTAMP,                 -- When the event was forwarded
+    error       TEXT,                       -- Error message if delivery failed
+    repository  VARCHAR(255),               -- Repository full name
+    sender      VARCHAR(255),               -- GitHub username
     replayed_from VARCHAR(255),             -- Original event ID if this is a replay
-    original_time TIMESTAMP                 -- Original event time for replays
+    original_time TIMESTAMP                 -- Original event time if this is a replay
 );
 
 -- Indexes for efficient querying
 CREATE INDEX idx_created_at ON events (created_at);
+CREATE INDEX idx_forwarded_at ON events (forwarded_at);
 CREATE INDEX idx_type ON events (type);
-CREATE INDEX idx_status ON events (status);
 CREATE INDEX idx_repository ON events (repository);
 CREATE INDEX idx_sender ON events (sender);
 CREATE INDEX idx_replayed_from ON events (replayed_from);
@@ -127,7 +127,7 @@ The storage interface supports filtering events by:
 - Event type(s)
 - Repository name
 - Time range (since/until)
-- Delivery status
+- Forwarding status
 - Sender
 
 Example queries:
@@ -137,12 +137,12 @@ events, err := storage.ListEvents(QueryOptions{
     Types:      []string{"push", "pull_request"},
     Repository: "owner/repo",
     Since:      time.Now().Add(-24 * time.Hour),
-    Status:     "delivered",
+    Forwarded:  true,
 })
 
 // List only replayed events
 events, err := storage.ListEvents(QueryOptions{
-    Status: "replayed",
+    Forwarded:  false,
 })
 
 // List original events that have been replayed
@@ -153,11 +153,11 @@ events, err := storage.ListEvents(QueryOptions{
 
 ### Querying Replay Events
 
-You can query replayed events using the `status` filter. For example, to list all replayed events:
+You can query replayed events using the `forwarded` filter. For example, to list all replayed events:
 
 ```go
 events, err := storage.ListEvents(QueryOptions{
-    Status: "replayed",
+    Forwarded:  true,
 })
 ```
 
@@ -346,9 +346,9 @@ Lists webhook events with filtering and pagination.
 - `type` (optional): Filter by event type (e.g., "push", "pull_request")
 - `repository` (optional): Filter by repository full name (e.g., "owner/repo")
 - `sender` (optional): Filter by GitHub username
-- `status` (optional): Filter by event status
 - `since` (optional): Start time in RFC3339 format (e.g., "2024-02-01T00:00:00Z")
 - `until` (optional): End time in RFC3339 format
+- `forwarded` (optional): Filter by forwarding status (true/false)
 - `limit` (optional): Maximum number of events to return (default: 50)
 - `offset` (optional): Number of events to skip for pagination
 
@@ -378,7 +378,7 @@ Lists webhook events with filtering and pagination.
         }
       },
       "created_at": "2024-02-06T00:00:00Z",
-      "status": "received",
+      "forwarded_at": "2024-02-06T00:00:01Z",
       "repository": "owner/repo",
       "sender": "username"
     }
@@ -420,7 +420,7 @@ Replays a specific webhook event by its ID. The ID should be GitHub's original d
 - `type`: GitHub event type (e.g., "push", "pull_request")
 - `payload`: Original webhook payload from GitHub
 - `created_at`: When the event was replayed
-- `status`: Always "replayed" for replayed events
+- `forwarded_at`: When the event was forwarded (null if not yet forwarded)
 - `repository`: Repository full name
 - `sender`: GitHub username that triggered the event
 - `replayed_from`: ID of the original event that was replayed
@@ -444,7 +444,7 @@ Replays a specific webhook event by its ID. The ID should be GitHub's original d
     }
   },
   "created_at": "2024-02-06T00:00:00Z",
-  "status": "replayed",
+  "forwarded_at": null,
   "repository": "owner/repo",
   "sender": "username",
   "replayed_from": "d2a1f85a-delivery-id-123"
@@ -473,7 +473,7 @@ Replays all webhook events within a specified time range.
   - `type`: GitHub event type (e.g., "push", "pull_request")
   - `payload`: Original webhook payload from GitHub
   - `created_at`: When the event was replayed
-  - `status`: Always "replayed" for replayed events
+  - `forwarded_at`: When the event was forwarded (null if not yet forwarded)
   - `repository`: Repository full name
   - `sender`: GitHub username that triggered the event
   - `replayed_from`: ID of the original event that was replayed
@@ -500,7 +500,7 @@ Replays all webhook events within a specified time range.
         }
       },
       "created_at": "2024-02-06T00:00:00Z",
-      "status": "replayed",
+      "forwarded_at": null,
       "repository": "owner/repo",
       "sender": "username",
       "replayed_from": "d2a1f85a-delivery-id-123"
@@ -530,7 +530,6 @@ query {
     type: "push",
     repository: "owner/repo",
     sender: "username",
-    status: "received",
     since: "2024-02-01T00:00:00Z",
     until: "2024-02-02T00:00:00Z",
     limit: 10,
@@ -541,7 +540,7 @@ query {
       type
       payload
       createdAt
-      status
+      forwardedAt
       repository
       sender
       replayedFrom
@@ -561,7 +560,7 @@ query {
     type
     payload
     createdAt
-    status
+    forwardedAt
     repository
     sender
   }
@@ -590,7 +589,7 @@ mutation {
     events {
       id
       type
-      status
+      forwardedAt
       replayedFrom
       originalTime
     }
@@ -614,7 +613,7 @@ mutation {
     events {
       id
       type
-      status
+      forwardedAt
       replayedFrom
       originalTime
     }
@@ -753,7 +752,7 @@ GitHub Webhook ──→ HubProxy ──→ Your Application
 2. HubProxy verifies the webhook signature
 3. The event is stored in a database
 4. If configured, the webhook is forwarded to your application
-5. The delivery status is updated in the database
+5. The forwarding time is recorded in the database
 ```
 
 ### Why a database as a Canonical Store?
