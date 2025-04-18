@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -52,23 +53,35 @@ func TestTailscaleIntegration(t *testing.T) {
 
 	const secret = "test-secret"
 
-	// Create webhook handler
+	// Create context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create webhook handler and forwarder
 	handler := webhook.NewHandler(webhook.Options{
 		Secret:           secret,
-		TargetURL:        targetServer.URL,
-		Store:            store,
 		Logger:           logger,
-		ValidateIP:       false,
+		Store:            store,
 		MetricsCollector: storage.NewDBMetricsCollector(store, logger),
 	})
 
-	// Create HTTP mux
-	mux := http.NewServeMux()
-	mux.Handle("/", handler)
+	forwarder := webhook.NewWebhookForwarder(webhook.WebhookForwarderOptions{
+		TargetURL:        targetServer.URL,
+		Storage:          store,
+		MetricsCollector: storage.NewDBMetricsCollector(store, logger),
+		Logger:           logger,
+	})
+
+	// Start the forwarder
+	go forwarder.StartForwarder(ctx)
+
+	// Create test server with webhook handler
+	server := httptest.NewServer(handler)
+	defer server.Close()
 
 	t.Run("Regular server", func(t *testing.T) {
 		// Test regular HTTP server
-		server := httptest.NewServer(mux)
+		server := httptest.NewServer(handler)
 		defer server.Close()
 
 		// Send a test webhook
@@ -107,7 +120,7 @@ func TestTailscaleIntegration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Start server
-		go http.Serve(ln, mux)
+		go http.Serve(ln, handler)
 
 		// Wait for server to be ready
 		time.Sleep(2 * time.Second)

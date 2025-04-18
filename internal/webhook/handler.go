@@ -1,7 +1,6 @@
 package webhook
 
 import (
-	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -36,19 +35,6 @@ var (
 		},
 	)
 
-	webhookForwardedRequests = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Name: "hubproxy_webhook_forwarded_requests_total",
-			Help: "Total number of webhook events forwarded",
-		},
-	)
-	webhookForwardedErrors = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Name: "hubproxy_webhook_forwarded_errors_total",
-			Help: "Total number of webhook forwarding errors",
-		},
-	)
-
 	webhookBlockedIPs = promauto.NewCounter(
 		prometheus.CounterOpts{
 			Name: "hubproxy_webhook_blocked_ips_total",
@@ -59,8 +45,6 @@ var (
 
 type Handler struct {
 	secret           string
-	targetURL        string
-	httpClient       *http.Client
 	logger           *slog.Logger
 	ipValidator      *security.IPValidator
 	validateIP       bool
@@ -70,8 +54,6 @@ type Handler struct {
 
 type Options struct {
 	Secret           string
-	TargetURL        string
-	HTTPClient       *http.Client
 	Logger           *slog.Logger
 	ValidateIP       bool
 	Store            storage.Storage
@@ -82,29 +64,8 @@ func NewHandler(opts Options) *Handler {
 	// Update IP ranges every hour
 	ipValidator := security.NewIPValidator(1*time.Hour, false)
 
-	httpClient := opts.HTTPClient
-
-	// Swap out HTTP client to use Unix socket
-	if strings.HasPrefix(opts.TargetURL, "unix://") {
-		socketPath := strings.TrimPrefix(opts.TargetURL, "unix://")
-		httpClient = &http.Client{
-			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
-					return net.Dial("unix", socketPath)
-				},
-			},
-		}
-	}
-
-	// Use default HTTP client if not provided
-	if httpClient == nil {
-		httpClient = &http.Client{}
-	}
-
 	return &Handler{
 		secret:           opts.Secret,
-		targetURL:        opts.TargetURL,
-		httpClient:       httpClient,
 		logger:           opts.Logger,
 		ipValidator:      ipValidator,
 		validateIP:       opts.ValidateIP,
@@ -185,52 +146,6 @@ func (h *Handler) ValidateGitHubEvent(r *http.Request) error {
 	return nil
 }
 
-// TargetURL returns the configured target URL
-func (h *Handler) TargetURL() string {
-	return h.targetURL
-}
-
-func (h *Handler) Forward(payload []byte, headers http.Header) error {
-	if h.targetURL == "" {
-		// In log-only mode, just log the event
-		h.logger.Info("webhook received in log-only mode",
-			"event", headers.Get("X-GitHub-Event"),
-			"delivery", headers.Get("X-GitHub-Delivery"))
-		return nil
-	}
-
-	var targetURL string
-	// http.NewRequest still needs a valid http URI, make a fake one for unix socket path
-	if strings.HasPrefix(h.targetURL, "unix://") {
-		targetURL = "http://127.0.0.1/webhook"
-	} else {
-		targetURL = h.targetURL
-	}
-
-	req, err := http.NewRequest(http.MethodPost, targetURL, strings.NewReader(string(payload)))
-	if err != nil {
-		return fmt.Errorf("creating request: %w", err)
-	}
-
-	// Forward relevant headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-GitHub-Event", headers.Get("X-GitHub-Event"))
-	req.Header.Set("X-GitHub-Delivery", headers.Get("X-GitHub-Delivery"))
-	req.Header.Set("X-Hub-Signature-256", headers.Get("X-Hub-Signature-256"))
-
-	resp, err := h.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("forwarding request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("target returned error: %s", resp.Status)
-	}
-
-	return nil
-}
-
 // ServeHTTP handles incoming webhook requests
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -301,21 +216,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.metricsCollector.EnqueueGatherMetrics(r.Context())
-
-	if h.targetURL != "" {
-		if err := h.Forward(payload, r.Header); err != nil {
-			h.logger.Error("forwarding error", "error", err)
-			webhookForwardedErrors.Inc()
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
-		} else {
-			webhookForwardedRequests.Inc()
-			err := h.store.MarkForwarded(r.Context(), event.ID)
-			if err != nil {
-				h.logger.Error("error marking event as forwarded", "error", err)
-			}
-		}
-	}
 
 	w.WriteHeader(http.StatusOK)
 }

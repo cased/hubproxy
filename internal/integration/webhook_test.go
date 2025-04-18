@@ -53,14 +53,23 @@ func TestWebhookIntegration(t *testing.T) {
 	metricsCollector := storage.NewDBMetricsCollector(store, logger)
 	metricsCollector.StartMetricsCollection(ctx, time.Second)
 
-	// Create webhook handler
+	// Create webhook handler and forwarder
 	handler := webhook.NewHandler(webhook.Options{
 		Secret:           secret,
-		TargetURL:        ts.URL,
 		Logger:           logger,
 		Store:            store,
 		MetricsCollector: metricsCollector,
 	})
+
+	forwarder := webhook.NewWebhookForwarder(webhook.WebhookForwarderOptions{
+		TargetURL:        ts.URL,
+		Storage:          store,
+		MetricsCollector: metricsCollector,
+		Logger:           logger,
+	})
+
+	// Start the forwarder
+	go forwarder.StartForwarder(ctx)
 
 	// Create test server with webhook handler
 	server := httptest.NewServer(handler)
@@ -211,14 +220,23 @@ func TestWebhookUnixSocket(t *testing.T) {
 	metricsCollector := storage.NewDBMetricsCollector(store, logger)
 	metricsCollector.StartMetricsCollection(ctx, time.Second)
 
-	// Create webhook handler with Unix socket target
+	// Create webhook handler and forwarder
 	handler := webhook.NewHandler(webhook.Options{
 		Secret:           secret,
-		TargetURL:        "unix://" + socketPath,
 		Logger:           logger,
 		Store:            store,
 		MetricsCollector: metricsCollector,
 	})
+
+	forwarder := webhook.NewWebhookForwarder(webhook.WebhookForwarderOptions{
+		TargetURL:        "unix://" + socketPath,
+		Storage:          store,
+		MetricsCollector: metricsCollector,
+		Logger:           logger,
+	})
+
+	// Start the forwarder
+	go forwarder.StartForwarder(ctx)
 
 	// Create test server with webhook handler
 	server := httptest.NewServer(handler)
@@ -245,6 +263,18 @@ func TestWebhookUnixSocket(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Wait a bit for the event to be stored
+	time.Sleep(100 * time.Millisecond)
+
+	// Get the event from storage to verify it was stored
+	events, _, err := store.ListEvents(ctx, storage.QueryOptions{})
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+
+	// Trigger event processing
+	err = forwarder.ProcessEvents(ctx)
+	require.NoError(t, err)
 
 	// Wait for forwarded request
 	select {
