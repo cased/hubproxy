@@ -164,3 +164,92 @@ func TestEventHeadersHandling(t *testing.T) {
 		assert.Equal(t, expected.Headers, actual.Headers, "Headers should match for event %s", actual.ID)
 	}
 }
+
+func TestForwardedAtField(t *testing.T) {
+	ctx := context.Background()
+	store, err := sql.New("sqlite:file:test_forwarded.db?mode=memory&cache=shared")
+	require.NoError(t, err)
+	defer store.Close()
+
+	// Create current time for testing
+	now := time.Now().UTC()
+	forwardedTime := now.Add(5 * time.Minute)
+
+	// Create events with different forwarded_at values
+	events := []*storage.Event{
+		{
+			ID:          "test-forwarded-1",
+			Type:        "push",
+			Payload:     []byte(`{"ref": "refs/heads/main"}`),
+			Headers:     []byte(`{"X-GitHub-Event": ["push"], "X-GitHub-Delivery": ["test-forwarded-1"]}`),
+			CreatedAt:   now,
+			ForwardedAt: &forwardedTime, // Event has been forwarded
+			Repository:  "test/repo",
+			Sender:      "test-user",
+		},
+		{
+			ID:          "test-forwarded-2",
+			Type:        "pull_request",
+			Payload:     []byte(`{"action": "opened"}`),
+			Headers:     []byte(`{"X-GitHub-Event": ["pull_request"], "X-GitHub-Delivery": ["test-forwarded-2"]}`),
+			CreatedAt:   now,
+			ForwardedAt: nil, // Event has not been forwarded
+			Repository:  "test/repo",
+			Sender:      "test-user",
+		},
+	}
+
+	// Store both events
+	for _, event := range events {
+		err = store.StoreEvent(ctx, event)
+		require.NoError(t, err)
+	}
+
+	// Test GetEvent forwarded_at retrieval
+	var stored *storage.Event
+	for _, expected := range events {
+		stored, err = store.GetEvent(ctx, expected.ID)
+		require.NoError(t, err)
+		require.NotNil(t, stored)
+
+		if expected.ForwardedAt == nil {
+			assert.Nil(t, stored.ForwardedAt, "ForwardedAt should be nil for event %s", expected.ID)
+		} else {
+			assert.NotNil(t, stored.ForwardedAt, "ForwardedAt should not be nil for event %s", expected.ID)
+			assert.Equal(t, expected.ForwardedAt.Unix(), stored.ForwardedAt.Unix(), "ForwardedAt should match for event %s", expected.ID)
+		}
+	}
+
+	// Test ListEvents forwarded_at retrieval
+	listed, total, err := store.ListEvents(ctx, storage.QueryOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, 2, total, "Should have exactly two events")
+	assert.Len(t, listed, 2, "Should list both events")
+
+	// Test filtering for non-forwarded events only
+	nonForwardedEvents, nonForwardedTotal, err := store.ListEvents(ctx, storage.QueryOptions{OnlyNonForwarded: true})
+	require.NoError(t, err)
+	assert.Equal(t, 1, nonForwardedTotal, "Should have exactly one non-forwarded event")
+	assert.Len(t, nonForwardedEvents, 1, "Should list only non-forwarded events")
+	assert.Equal(t, "test-forwarded-2", nonForwardedEvents[0].ID, "Should be the non-forwarded event")
+	assert.Nil(t, nonForwardedEvents[0].ForwardedAt, "ForwardedAt should be nil for the non-forwarded event")
+
+	// Create a map of expected events by ID for easier comparison
+	expectedByID := make(map[string]*storage.Event)
+	for _, e := range events {
+		expectedByID[e.ID] = e
+	}
+
+	// Verify forwarded_at in listed events
+	for _, actual := range listed {
+		expected := expectedByID[actual.ID]
+		require.NotNil(t, expected, "Should find matching expected event")
+
+		if expected.ForwardedAt == nil {
+			assert.Nil(t, actual.ForwardedAt, "ForwardedAt should be nil for event %s", expected.ID)
+		} else {
+			assert.NotNil(t, actual.ForwardedAt, "ForwardedAt should not be nil for event %s", expected.ID)
+			assert.Equal(t, expected.ForwardedAt.Unix(), actual.ForwardedAt.Unix(), "ForwardedAt should match for event %s", expected.ID)
+		}
+	}
+}
