@@ -23,13 +23,14 @@ type Event struct {
 
 // QueryOptions contains options for querying events
 type QueryOptions struct {
-	Types      []string  // Event types to filter by
-	Repository string    // Repository to filter by
-	Sender     string    // Sender to filter by
-	Since      time.Time // Start time for events
-	Until      time.Time // End time for events
-	Limit      int       // Maximum number of events to return
-	Offset     int       // Offset for pagination
+	Types            []string  // Event types to filter by
+	Repository       string    // Repository to filter by
+	Sender           string    // Sender to filter by
+	Since            time.Time // Start time for events
+	Until            time.Time // End time for events
+	Limit            int       // Maximum number of events to return
+	Offset           int       // Offset for pagination
+	OnlyNonForwarded bool      // Only return events that have not been forwarded (forwarded_at IS NULL)
 }
 
 // TypeStat represents event type statistics

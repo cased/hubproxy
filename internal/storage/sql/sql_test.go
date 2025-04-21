@@ -226,6 +226,14 @@ func TestForwardedAtField(t *testing.T) {
 	assert.Equal(t, 2, total, "Should have exactly two events")
 	assert.Len(t, listed, 2, "Should list both events")
 
+	// Test filtering for non-forwarded events only
+	nonForwardedEvents, nonForwardedTotal, err := store.ListEvents(ctx, storage.QueryOptions{OnlyNonForwarded: true})
+	require.NoError(t, err)
+	assert.Equal(t, 1, nonForwardedTotal, "Should have exactly one non-forwarded event")
+	assert.Len(t, nonForwardedEvents, 1, "Should list only non-forwarded events")
+	assert.Equal(t, "test-forwarded-2", nonForwardedEvents[0].ID, "Should be the non-forwarded event")
+	assert.Nil(t, nonForwardedEvents[0].ForwardedAt, "ForwardedAt should be nil for the non-forwarded event")
+
 	// Create a map of expected events by ID for easier comparison
 	expectedByID := make(map[string]*storage.Event)
 	for _, e := range events {

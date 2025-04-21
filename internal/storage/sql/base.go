@@ -240,5 +240,8 @@ func (s *BaseStorage) addQueryConditions(query sq.SelectBuilder, opts storage.Qu
 	if opts.Sender != "" {
 		query = query.Where(sq.Eq{"sender": opts.Sender})
 	}
+	if opts.OnlyNonForwarded {
+		query = query.Where("forwarded_at IS NULL")
+	}
 	return query
 }
