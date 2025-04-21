@@ -107,7 +107,7 @@ func (s *Storage) StoreEvent(ctx context.Context, event *storage.Event) error {
 
 func (s *Storage) GetEvent(ctx context.Context, id string) (*storage.Event, error) {
 	query := s.builder.
-		Select("id", "type", "headers", "payload", "created_at", "error", "repository", "sender").
+		Select("id", "type", "headers", "payload", "created_at", "forwarded_at", "error", "repository", "sender").
 		From(s.tableName).
 		Where("id = ?", id).
 		Limit(1)
@@ -121,6 +121,7 @@ func (s *Storage) GetEvent(ctx context.Context, id string) (*storage.Event, erro
 		&headers,
 		&payload,
 		&event.CreatedAt,
+		&event.ForwardedAt,
 		&event.Error,
 		&event.Repository,
 		&event.Sender,
@@ -139,7 +140,7 @@ func (s *Storage) GetEvent(ctx context.Context, id string) (*storage.Event, erro
 
 func (s *Storage) ListEvents(ctx context.Context, opts storage.QueryOptions) ([]*storage.Event, int, error) {
 	query := s.builder.
-		Select("id", "type", "headers", "payload", "created_at", "error", "repository", "sender").
+		Select("id", "type", "headers", "payload", "created_at", "forwarded_at", "error", "repository", "sender").
 		From(s.tableName)
 
 	query = s.addQueryConditions(query, opts)
@@ -179,6 +180,7 @@ func (s *Storage) ListEvents(ctx context.Context, opts storage.QueryOptions) ([]
 			&headers,
 			&payload,
 			&event.CreatedAt,
+			&event.ForwardedAt,
 			&event.Error,
 			&event.Repository,
 			&event.Sender,

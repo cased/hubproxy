@@ -44,13 +44,14 @@ func (s *BaseStorage) StoreEvent(ctx context.Context, event *storage.Event) erro
 	// Use the existing builder's placeholder format
 	query := s.builder.
 		Insert(s.tableName).
-		Columns("id", "type", "payload", "headers", "created_at", "error", "repository", "sender").
+		Columns("id", "type", "payload", "headers", "created_at", "forwarded_at", "error", "repository", "sender").
 		Values(
 			event.ID,
 			event.Type,
 			event.Payload,
 			event.Headers,
 			event.CreatedAt,
+			event.ForwardedAt,
 			event.Error,
 			event.Repository,
 			event.Sender,
@@ -188,7 +189,7 @@ func (s *BaseStorage) GetStats(ctx context.Context, since time.Time) (map[string
 
 // GetEvent returns a single event by ID
 func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, error) {
-	query := s.builder.Select("id", "type", "payload", "headers", "created_at", "error", "repository", "sender").From(s.tableName).
+	query := s.builder.Select("id", "type", "payload", "headers", "created_at", "forwarded_at", "error", "repository", "sender").From(s.tableName).
 		Where(sq.Eq{"id": id}).
 		Limit(1)
 
@@ -209,6 +210,7 @@ func (s *BaseStorage) GetEvent(ctx context.Context, id string) (*storage.Event, 
 		&event.Payload,
 		&event.Headers,
 		&event.CreatedAt,
+		&event.ForwardedAt,
 		&event.Error,
 		&event.Repository,
 		&event.Sender,

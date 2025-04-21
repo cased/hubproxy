@@ -13,6 +13,7 @@ type Event struct {
 	Headers      json.RawMessage `json:"headers"`
 	Payload      json.RawMessage `json:"payload"`
 	CreatedAt    time.Time       `json:"created_at"`
+	ForwardedAt  *time.Time      `json:"forwarded_at,omitempty"`
 	Error        string          `json:"error,omitempty"`
 	Repository   string          `json:"repository,omitempty"`
 	Sender       string          `json:"sender,omitempty"`
