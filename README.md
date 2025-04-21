@@ -4,6 +4,8 @@
 
 HubProxy is a proxy for GitHub webhooks, built for people building with GitHub at scale. It fixes a lot of stuff, and makes life easier.
 
+It has a lot of features (most optional) and it's extremely configurable.
+
 ### Key Features
 
 - **Webhook Verification**: Cryptographically verifies GitHub webhook signatures to ensure authenticity
