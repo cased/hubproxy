@@ -17,7 +17,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/xo/dburl v0.23.8
 	golang.org/x/sync v0.13.0
-	tailscale.com v1.84.1
+	tailscale.com v1.84.3
 )
 
 require (
