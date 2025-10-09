@@ -4,7 +4,7 @@ go 1.24.1
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/go-chi/chi/v5 v5.2.1
+	github.com/go-chi/chi/v5 v5.2.3
 	github.com/go-sql-driver/mysql v1.9.2
 	github.com/google/uuid v1.6.0
 	github.com/graphql-go/graphql v0.8.1
@@ -16,7 +16,7 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
 	github.com/xo/dburl v0.23.8
-	golang.org/x/sync v0.13.0
+	golang.org/x/sync v0.17.0
 	tailscale.com v1.84.1
 )
 
